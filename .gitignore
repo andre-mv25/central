@@ -31,3 +31,8 @@ Thumbs.db
 # Datos locales de Docker
 pgdata/
 redisdata/
+
+# Paquetes y respaldos generados
+/entrega/
+/respaldos/
+*.zip

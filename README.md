@@ -26,8 +26,16 @@ cp .env.example .env      # ajustar POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS
 docker compose up -d --build
 ```
 
+Para generar un `.env` con credenciales aleatorias:
+
+```bash
+scripts\generar-env.ps1   # Windows
+sh scripts/generar-env.sh # Linux / macOS
+```
+
 Servicios: `db` (PostgreSQL 16), `backend` (NestJS), `frontend` (SPA servida por
-nginx) y `caddy` (proxy inverso en 80/443).
+nginx) y `caddy` (proxy inverso en 80/443). El puerto de acceso se controla con
+`HTTP_PORT` (por defecto 80).
 
 - Aplicación: `http://localhost/`
 - API: `http://localhost/api`
@@ -44,7 +52,7 @@ docker compose down -v              # detener y borrar datos (reinicia la BD)
 > Si cambias `POSTGRES_PASSWORD` después del primer arranque, la contraseña del
 > volumen no cambia. Ejecuta `docker compose down -v` y vuelve a levantar.
 
-### TLS automático (producción)
+### TLS automático (opcional, requiere dominio)
 
 Caddy emite y renueva el certificado SSL/TLS de Let's Encrypt sin configuración
 adicional. Requisitos:
@@ -66,6 +74,31 @@ docker compose up -d
 
 Caddy obtiene el certificado en el primer arranque (puede tardar unos segundos).
 Mientras no haya dominio, usar `SITE_ADDRESS=:80` (HTTP local).
+
+## Entrega en la laptop del cliente
+
+El modo de entrega es un paquete autocontenido con imágenes Docker
+preconstruidas, para que la laptop del cliente no necesite compilar ni acceso a
+internet. El cliente solo carga las imágenes y levanta el stack:
+
+```bash
+scripts\cargar-imagenes.ps1     # Windows
+docker compose up -d
+```
+
+Generar el paquete (crea `entrega/` y `registro-ventas-entrega-<fecha>.zip`):
+
+```bash
+scripts\empaquetar.ps1
+```
+
+El paquete incluye `docker-compose.entrega.yml` (renombrado a
+`docker-compose.yml`, sin `build:`), las imágenes (`imagenes/*.tar`), la base de
+datos, los scripts de instalación/respaldo y la guía
+`docs/entrega/INSTALACION_CLIENTE.md` (copiada como `LEEME.md`).
+
+> El paquete de entrega no está generado todavía: el script está listo, se
+> ejecuta cuando se decida cerrar la versión.
 
 ## Base de datos
 
@@ -162,4 +195,6 @@ si el precio cambió.
 - [x] API backend (auth, catálogos, ventas, historial de precios, reportes)
 - [x] docker-compose del stack completo (db + backend + frontend + caddy)
 - [x] Frontend React + AG Grid
-- [ ] Despliegue en VPS
+- [x] Scripts de configuración, respaldo y restauración
+- [x] Empaquetado para laptop del cliente (listo, sin ejecutar)
+- [ ] Despliegue en VPS con dominio
