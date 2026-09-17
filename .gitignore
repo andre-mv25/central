@@ -1,0 +1,33 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Entornos
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Cobertura
+coverage/
+
+# Sistema operativo
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Datos locales de Docker
+pgdata/
+redisdata/
