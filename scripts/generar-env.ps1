@@ -1,4 +1,6 @@
-# Genera un .env con POSTGRES_PASSWORD y JWT_SECRET aleatorios.
+# Genera un .env a partir de .env.example.
+# POSTGRES_PASSWORD se toma de la plantilla (fija en 5052003) y
+# JWT_SECRET se genera aleatoriamente.
 # Uso:  powershell -ExecutionPolicy Bypass -File scripts\generar-env.ps1
 $ErrorActionPreference = 'Stop'
 
@@ -21,12 +23,10 @@ function New-Secret([int]$bytes = 24) {
     -join ($buffer | ForEach-Object { $_.ToString('x2') })
 }
 
-$password = New-Secret 24
 $jwtSecret = (New-Secret 32) + (New-Secret 32)
 
 (Get-Content '.env.example') `
-    -replace '^POSTGRES_PASSWORD=.*', "POSTGRES_PASSWORD=$password" `
     -replace '^JWT_SECRET=.*', "JWT_SECRET=$jwtSecret" |
     Set-Content -Encoding ascii '.env'
 
-Write-Host 'OK: .env generado con credenciales aleatorias.'
+Write-Host 'OK: .env generado. POSTGRES_PASSWORD = 5052003, JWT_SECRET aleatorio.'

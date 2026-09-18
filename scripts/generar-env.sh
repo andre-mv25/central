@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
-# Genera un .env con POSTGRES_PASSWORD y JWT_SECRET aleatorios.
+# Genera un .env a partir de .env.example.
+# POSTGRES_PASSWORD se toma de la plantilla (fija en 5052003) y
+# JWT_SECRET se genera aleatoriamente.
 # Uso:  sh scripts/generar-env.sh
 set -eu
 
@@ -24,11 +26,9 @@ generar_secreto() {
     fi
 }
 
-PASSWORD="$(generar_secreto)"
 JWT_SECRET="$(generar_secreto)$(generar_secreto)"
 
-sed -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$PASSWORD|" \
-    -e "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" \
+sed -e "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" \
     .env.example > .env
 
-echo "OK: .env generado con credenciales aleatorias."
+echo "OK: .env generado. POSTGRES_PASSWORD = 5052003, JWT_SECRET aleatorio."

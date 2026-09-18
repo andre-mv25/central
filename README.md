@@ -22,7 +22,7 @@ docs/       Documentación
 ## Despliegue con Docker Compose
 
 ```bash
-cp .env.example .env      # ajustar POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS
+cp .env.example .env      # ajustar JWT_SECRET, SITE_ADDRESS (POSTGRES_PASSWORD fija en 5052003)
 docker compose up -d --build
 ```
 

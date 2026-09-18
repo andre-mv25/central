@@ -74,6 +74,20 @@ La primera vez tarda unos segundos en crear la base de datos.
 > Cambiar la contraseña antes de usarlo en producción. Contactar al proveedor
 > para generarla.
 
+### Acceso a la base de datos
+
+- Clave de la base de datos: `5052003` (usuario `ventas`, base `registro_ventas`).
+- Consola SQL dentro del contenedor:
+
+  ```bash
+  docker compose exec db psql -U ventas -d registro_ventas
+  ```
+
+- Con un cliente gráfico (pgAdmin/DBeaver): el puerto 5432 no está expuesto por
+  defecto. Si se necesita, agregar `ports: ["5432:5432"]` al servicio `db` del
+  `docker-compose.yml` y reconectar el stack con `docker compose up -d`. Luego
+  conectar a `localhost:5432` con usuario `ventas` y clave `5052003`.
+
 ## 5. Uso desde otras computadoras de la red
 
 1. Averiguar la IP de la laptop servidor (Windows: `ipconfig`).
