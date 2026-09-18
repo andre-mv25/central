@@ -6,8 +6,10 @@ Sistema de captura de ventas a granel. Se ejecuta en una sola computadora
 ## 1. Requisitos
 
 - **Docker Desktop** instalado y **abierto** (ícono de ballena activo).
-  Descarga: https://www.docker.com/products/docker-desktop
-- 4 GB de RAM libres y ~3 GB de disco.
+  - Si el paquete incluye la carpeta `instaladores/`, instalar desde ahí
+    (funciona sin internet).
+  - Si no la incluye, descargar de https://www.docker.com/products/docker-desktop
+- 4 GB de RAM libres y ~3 GB de disco (más el instalador de Docker).
 - Windows 10/11, macOS o Linux.
 
 Verificar la instalación (abrir una terminal):
@@ -23,6 +25,7 @@ docker compose version
 docker-compose.yml        configuración de los servicios
 .env.example              plantilla de configuración
 imagenes/                 imágenes Docker preconstruidas (no requiere compilar)
+instaladores/             instalador de Docker Desktop (si se generó con internet)
 scripts/                  atajos de instalación, respaldo y restauración
 database/init/            esquema y datos iniciales de la base
 infra/caddy/              configuración del servidor web
@@ -68,7 +71,7 @@ La primera vez tarda unos segundos en crear la base de datos.
 
 ## 4. Acceso
 
-- Usuario: `admin@registro.local`
+- Usuario: `admin`
 - Contraseña: `admin123`
 
 > Cambiar la contraseña antes de usarlo en producción. Contactar al proveedor

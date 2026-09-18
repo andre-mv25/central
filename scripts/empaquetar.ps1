@@ -1,8 +1,14 @@
 # Empaqueta el proyecto para entregar al cliente.
 # Genera la carpeta entrega/ y un ZIP con imagenes preconstruidas,
-# docker-compose listo para usar, base de datos, scripts y el LEEME.
+# docker-compose listo para usar, base de datos, scripts, el LEEME y
+# el instalador de Docker Desktop (para la laptop del cliente sin internet).
 #
 # Uso:  powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1
+# Opciones:
+#   -SinInstaladorDocker   no descarga el instalador de Docker Desktop
+param(
+    [switch]$SinInstaladorDocker
+)
 $ErrorActionPreference = 'Stop'
 
 $raiz = Split-Path -Parent $PSScriptRoot
@@ -24,6 +30,28 @@ if (Test-Path $zip) { Remove-Item -Force $zip }
 New-Item -ItemType Directory -Force -Path (Join-Path $salida 'imagenes') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $salida 'scripts') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $salida 'infra\caddy') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $salida 'instaladores') | Out-Null
+
+if (-not $SinInstaladorDocker) {
+    $instalador = Join-Path $salida 'instaladores\Docker Desktop Installer.exe'
+    $urlDocker = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
+    Write-Host '==> Descargando instalador de Docker Desktop (Windows)...'
+    try {
+        Invoke-WebRequest -Uri $urlDocker -OutFile $instalador -UseBasicParsing
+    } catch {
+        Write-Warning 'Fallo la descarga con Invoke-WebRequest, reintentando con curl.exe...'
+        & curl.exe -L --fail --silent --show-error -o $instalador $urlDocker
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo descargar el instalador de Docker Desktop.' }
+    }
+    $tamano = (Get-Item $instalador).Length
+    if ($tamano -lt 400MB) {
+        Write-Warning "Tamano inesperado del instalador ($tamano bytes). Verificar manualmente."
+    } else {
+        Write-Host "Instalador descargado ($([math]::Round($tamano/1MB)) MB)."
+    }
+} else {
+    Write-Host '==> Omitido: instalador de Docker Desktop (-SinInstaladorDocker).'
+}
 
 $imagenes = [ordered]@{
     'postgres.tar' = 'postgres:16-alpine'

@@ -95,7 +95,10 @@ scripts\empaquetar.ps1
 El paquete incluye `docker-compose.entrega.yml` (renombrado a
 `docker-compose.yml`, sin `build:`), las imágenes (`imagenes/*.tar`), la base de
 datos, los scripts de instalación/respaldo y la guía
-`docs/entrega/INSTALACION_CLIENTE.md` (copiada como `LEEME.md`).
+`docs/entrega/INSTALACION_CLIENTE.md` (copiada como `LEEME.md`). Además, si hay
+internet al generar el paquete, descarga el instalador de Docker Desktop a
+`instaladores/` para que la laptop del cliente no lo necesite (omitir con
+`-SinInstaladorDocker`).
 
 > El paquete de entrega no está generado todavía: el script está listo, se
 > ejecuta cuando se decida cerrar la versión.
@@ -131,7 +134,7 @@ API en `http://localhost:3000/api`.
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@registro.local","password":"admin123"}'
+  -d '{"usuario":"admin","password":"admin123"}'
 ```
 
 Usar el `accessToken` como `Authorization: Bearer <token>`.
@@ -186,7 +189,7 @@ si el precio cambió.
 
 ## Credenciales por defecto
 
-- Usuario: `admin@registro.local`
+- Usuario: `admin`
 - Contraseña: `admin123` (cambiar en producción)
 
 ## Estado

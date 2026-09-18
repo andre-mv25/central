@@ -14,7 +14,7 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const usuario = await this.usuariosRepository.findByEmail(dto.email);
+    const usuario = await this.usuariosRepository.findByEmail(dto.usuario);
     if (!usuario || !usuario.activo || !verifyPassword(dto.password, usuario.password_hash)) {
       throw new UnauthorizedException('Credenciales inválidas');
     }

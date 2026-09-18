@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/auth.store';
 export function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@registro.local');
+  const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -16,7 +16,7 @@ export function LoginPage() {
     setError('');
     setCargando(true);
     try {
-      await login(email, password);
+      await login(usuario, password);
       navigate('/', { replace: true });
     } catch (err) {
       setError(apiErrorMessage(err));
@@ -32,12 +32,13 @@ export function LoginPage() {
         <p>Ingresa con tu cuenta</p>
 
         <label>
-          Email
+          Usuario
           <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            type="text"
+            value={usuario}
+            onChange={(event) => setUsuario(event.target.value)}
             autoComplete="username"
+            placeholder="usuario"
             required
           />
         </label>
@@ -49,6 +50,7 @@ export function LoginPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"
+            placeholder="contraseña"
             required
           />
         </label>
