@@ -3,26 +3,21 @@ import {
   IsBoolean,
   IsDateString,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
+  IsString,
 } from 'class-validator';
 
 export class CreateRegistroVentaDto {
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  compradorId!: number;
+  @IsString()
+  @IsNotEmpty({ message: 'El comprador es obligatorio' })
+  comprador!: string;
 
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  claseId!: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  calidadId!: number;
+  @IsString()
+  @IsNotEmpty({ message: 'La clase es obligatoria' })
+  clase!: string;
 
   @Type(() => Number)
   @IsInt()

@@ -2,9 +2,9 @@ import { api } from './api';
 import type { EvaluacionPrecio, Kpis } from '../types';
 
 export const historialService = {
-  async evaluarPrecio(claseId: number, calidadId: number, precio?: number): Promise<EvaluacionPrecio> {
+  async evaluarPrecioPorNombres(clase: string, precio?: number): Promise<EvaluacionPrecio> {
     const { data } = await api.get<EvaluacionPrecio>('/historial-precios/sugerencia', {
-      params: { claseId, calidadId, precio },
+      params: { clase, precio },
     });
     return data;
   },

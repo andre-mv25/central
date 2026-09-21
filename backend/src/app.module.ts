@@ -15,6 +15,7 @@ import { CalidadesModule } from './modules/calidades/calidades.module';
 import { RegistrosVentasModule } from './modules/registros-ventas/registros-ventas.module';
 import { HistorialPreciosModule } from './modules/historial-precios/historial-precios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
+import { InventarioModule } from './modules/inventario/inventario.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ReportesModule } from './modules/reportes/reportes.module';
     RegistrosVentasModule,
     HistorialPreciosModule,
     ReportesModule,
+    InventarioModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

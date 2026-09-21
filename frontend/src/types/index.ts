@@ -9,11 +9,6 @@ export interface Clase {
   nombre_clase: string;
 }
 
-export interface Calidad {
-  id: number;
-  nombre_calidad: string;
-}
-
 export interface Comprador {
   id: number;
   nombre: string;
@@ -25,7 +20,6 @@ export interface RegistroVenta {
   id: number;
   comprador_id: number;
   clase_id: number;
-  calidad_id: number;
   usuario_registro_id: number;
   bolsas: number;
   kilos: string;
@@ -37,7 +31,6 @@ export interface RegistroVenta {
   comprador: string;
   sucursal: string;
   clase: string;
-  calidad: string;
   usuario: string;
 }
 
@@ -60,9 +53,8 @@ export interface Kpis {
 
 export interface FilaCaptura {
   id: string;
-  compradorId: number | null;
-  claseId: number | null;
-  calidadId: number | null;
+  comprador: string | null;
+  clase: string | null;
   bolsas: number | null;
   kilos: number | null;
   precio: number | null;
@@ -82,4 +74,28 @@ export interface ApiErrorBody {
   requiereConfirmacion?: boolean;
   evaluacion?: EvaluacionPrecio;
   anomalias?: AnomaliaBulk[];
+}
+
+export interface ProductoInventario {
+  id: number;
+  nombre: string;
+  codigo: string | null;
+  unidad_medida: string;
+  stock_minimo: number;
+  stock_actual: number;
+  activo: boolean;
+  requiere_reposicion: boolean;
+}
+
+export interface MovimientoInventario {
+  id: number;
+  producto_id: number;
+  tipo: 'entrada' | 'salida' | 'ajuste';
+  cantidad: string;
+  motivo: string | null;
+  referencia: string | null;
+  producto: string;
+  unidad_medida: string;
+  usuario: string;
+  creado_at: string;
 }

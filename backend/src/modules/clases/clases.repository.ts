@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../config/database.constants';
+
+export type DbExecutor = Pool | PoolClient;
 
 export interface ClaseRow {
   id: number;
@@ -10,6 +12,27 @@ export interface ClaseRow {
 @Injectable()
 export class ClasesRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  async findByName(nombreClase: string, executor: DbExecutor = this.pool): Promise<ClaseRow | null> {
+    const { rows } = await executor.query<ClaseRow>(
+      'SELECT * FROM clases WHERE nombre_clase = $1',
+      [nombreClase],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findOrCreateByName(nombreClase: string, executor: DbExecutor = this.pool): Promise<number> {
+    const existente = await this.findByName(nombreClase, executor);
+    if (existente) return existente.id;
+    const { rows } = await executor.query<Pick<ClaseRow, 'id'>>(
+      `INSERT INTO clases (nombre_clase)
+       VALUES ($1)
+       ON CONFLICT (nombre_clase) DO UPDATE SET nombre_clase = EXCLUDED.nombre_clase
+       RETURNING id`,
+      [nombreClase],
+    );
+    return rows[0].id;
+  }
 
   async findAll(): Promise<ClaseRow[]> {
     const { rows } = await this.pool.query<ClaseRow>('SELECT * FROM clases ORDER BY nombre_clase');

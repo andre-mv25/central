@@ -1,6 +1,6 @@
 # Registro de Ventas
 
-Sistema de captura y registro de ventas a granel por clase y calidad.
+Sistema de captura de ventas y control de inventario.
 
 ## Stack
 
@@ -113,8 +113,22 @@ psql -U <usuario> -d registro_ventas -f database/init/01-schema.sql
 psql -U <usuario> -d registro_ventas -f database/init/02-seed.sql
 ```
 
-Tablas: `roles`, `usuarios`, `compradores`, `clases`, `calidades`,
-`historial_precios`, `registros_ventas`.
+Tablas: `roles`, `usuarios`, `compradores`, `clases`,
+`historial_precios`, `registros_ventas`, `productos`, `recepciones_inventario`
+y `movimientos_inventario`.
+
+### Inventario
+
+La pantalla **Inventario** permite crear productos con una unidad y stock mínimo,
+registrar salidas, entradas y ajustes, y registrar una carga completa con varias
+líneas en una sola operación. Las existencias se calculan desde el historial de
+movimientos, por lo que cada cambio queda trazable con fecha y usuario. El sistema
+no permite que una salida deje el stock negativo y marca los productos que requieren
+reposición.
+
+Para una instalación existente, aplicar primero
+`database/migrations/20260918_inventario.sql` en PostgreSQL. Las instalaciones
+nuevas crean estas tablas automáticamente al iniciar el contenedor.
 
 ## Backend
 
@@ -156,8 +170,10 @@ Caddy), por lo que el backend debe estar corriendo.
 
 - **Login** (`/login`): autenticación con JWT (token en `localStorage`).
 - **Registros** (`/`): KPIs del día, captura tipo hoja de cálculo con AG Grid
-  (comprador, clase, calidad, bolsas, kilos, precio, último precio y total
+  (comprador, clase, bolsas, kilos, precio, último precio y total
   calculado), guardado en lote, y listado de ventas con eliminación.
+- Comprador y clase se escriben en texto libre: al guardar, los
+  catálogos se **crean automáticamente** si el nombre no existe.
 - La alerta de precio (variación > 20%) abre un modal de confirmación; al
   confirmar se reenvía la captura con `confirmarPrecioAnomalo: true`.
 
@@ -169,8 +185,7 @@ Caddy), por lo que el backend debe estar corriendo.
 | GET | `/api/auth/me` | Usuario autenticado |
 | GET | `/api/compradores` | Catálogo de compradores |
 | GET | `/api/clases` | Catálogo de clases |
-| GET | `/api/calidades` | Catálogo de calidades |
-| GET | `/api/historial-precios/sugerencia?claseId=&calidadId=&precio=` | Último precio y variación |
+| GET | `/api/historial-precios/sugerencia?clase=&precio=` | Último precio y variación por clase |
 | GET | `/api/registros-ventas?fecha=&compradorId=&sucursal=` | Listado de ventas |
 | POST | `/api/registros-ventas` | Crear venta |
 | POST | `/api/registros-ventas/bulk` | Crear ventas en lote (transaccional) |
@@ -181,7 +196,7 @@ Caddy), por lo que el backend debe estar corriendo.
 ### Regla de negocio: alerta de precio
 
 Al registrar una venta se compara el precio contra el último de
-`historial_precios` para la misma clase y calidad. Si la variación supera
+`historial_precios` para la misma clase. Si la variación supera
 `PRICE_ALERT_THRESHOLD` (20% por defecto), la API responde `422` con
 `requiereConfirmacion: true`. Para confirmar, reenviar con
 `confirmarPrecioAnomalo: true`. Al guardar se actualiza `historial_precios`

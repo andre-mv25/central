@@ -7,6 +7,9 @@ import {
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../config/database.constants';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { CompradoresRepository } from '../compradores/compradores.repository';
+import { ClasesRepository } from '../clases/clases.repository';
+import { CalidadesRepository } from '../calidades/calidades.repository';
 import {
   HistorialPreciosRepository,
   HistorialPrecioRow,
@@ -17,6 +20,9 @@ import { CreateRegistroVentaDto } from './dto/create-registro-venta.dto';
 import { QueryRegistrosVentaDto } from './dto/query-registros-venta.dto';
 import { UpdateRegistroVentaDto } from './dto/update-registro-venta.dto';
 import { RegistrosVentasRepository } from './registros-ventas.repository';
+import type { DbExecutor } from './registros-ventas.repository';
+
+const CALIDAD_ESTANDAR = 'Estándar';
 
 @Injectable()
 export class RegistrosVentasService {
@@ -25,7 +31,22 @@ export class RegistrosVentasService {
     private readonly repository: RegistrosVentasRepository,
     private readonly historialService: HistorialPreciosService,
     private readonly historialRepository: HistorialPreciosRepository,
+    private readonly compradoresRepository: CompradoresRepository,
+    private readonly clasesRepository: ClasesRepository,
+    private readonly calidadesRepository: CalidadesRepository,
   ) {}
+
+  private async resolverCatalogos(
+    ejecutor: DbExecutor,
+    comprador: string,
+    clase: string,
+  ): Promise<{ compradorId: number; claseId: number; calidadId: number }> {
+    return {
+      compradorId: await this.compradoresRepository.findOrCreateByName(comprador.trim(), ejecutor),
+      claseId: await this.clasesRepository.findOrCreateByName(clase.trim(), ejecutor),
+      calidadId: await this.calidadesRepository.findOrCreateByName(CALIDAD_ESTANDAR, ejecutor),
+    };
+  }
 
   findAll(query: QueryRegistrosVentaDto) {
     return this.repository.findAll({
@@ -64,7 +85,8 @@ export class RegistrosVentasService {
   }
 
   async create(dto: CreateRegistroVentaDto, usuario: AuthUser) {
-    const evaluacion = await this.historialService.evaluarPrecio(dto.claseId, dto.calidadId, dto.precio);
+    const ids = await this.resolverCatalogos(this.pool, dto.comprador, dto.clase);
+    const evaluacion = await this.historialService.evaluarPrecio(ids.claseId, ids.calidadId, dto.precio);
     if (evaluacion.alerta && !dto.confirmarPrecioAnomalo) {
       throw new UnprocessableEntityException({
         message: evaluacion.mensaje,
@@ -78,9 +100,7 @@ export class RegistrosVentasService {
       await client.query('BEGIN');
       const registro = await this.repository.create(
         {
-          compradorId: dto.compradorId,
-          claseId: dto.claseId,
-          calidadId: dto.calidadId,
+          ...ids,
           usuarioRegistroId: usuario.id,
           bolsas: dto.bolsas,
           kilos: dto.kilos,
@@ -91,8 +111,8 @@ export class RegistrosVentasService {
       );
       await this.registrarHistorialSiCambia(
         client,
-        dto.claseId,
-        dto.calidadId,
+        ids.claseId,
+        ids.calidadId,
         dto.precio,
         usuario.id,
       );
@@ -107,10 +127,17 @@ export class RegistrosVentasService {
   }
 
   async createBulk(dto: BulkCreateRegistroVentaDto, usuario: AuthUser) {
+    const items = await Promise.all(
+      dto.registros.map(async (item) => {
+        const ids = await this.resolverCatalogos(this.pool, item.comprador, item.clase);
+        return { ...item, ...ids };
+      }),
+    );
+
     const anomalias: Array<{ index: number; mensaje: string }> = [];
 
-    for (let index = 0; index < dto.registros.length; index++) {
-      const item = dto.registros[index];
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
       const evaluacion = await this.historialService.evaluarPrecio(
         item.claseId,
         item.calidadId,
@@ -131,10 +158,10 @@ export class RegistrosVentasService {
     }
 
     const client = await this.pool.connect();
-    const ids: number[] = [];
+    const idsGuardados: number[] = [];
     try {
       await client.query('BEGIN');
-      for (const item of dto.registros) {
+      for (const item of items) {
         const registro = await this.repository.create(
           {
             compradorId: item.compradorId,
@@ -148,7 +175,7 @@ export class RegistrosVentasService {
           },
           client,
         );
-        ids.push(registro.id);
+        idsGuardados.push(registro.id);
         await this.registrarHistorialSiCambia(
           client,
           item.claseId,
@@ -165,7 +192,7 @@ export class RegistrosVentasService {
       client.release();
     }
 
-    const registros = await Promise.all(ids.map((id) => this.repository.findById(id)));
+    const registros = await Promise.all(idsGuardados.map((id) => this.repository.findById(id)));
     return { total: registros.length, registros };
   }
 

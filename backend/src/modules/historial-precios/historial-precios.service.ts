@@ -22,6 +22,17 @@ export class HistorialPreciosService {
     return this.config.get<number>('priceAlertThreshold') ?? 20;
   }
 
+  evaluacionSinHistorial(): EvaluacionPrecio {
+    return {
+      ultimoPrecio: null,
+      precioSugerido: null,
+      variacionPct: null,
+      umbral: this.umbral,
+      alerta: false,
+      mensaje: 'Sin historial de precios para esta clase y calidad. Se registrará como primer precio.',
+    };
+  }
+
   async findHistorial(claseId: number, calidadId: number) {
     const rows = await this.repository.findByClaseCalidad(claseId, calidadId);
     return rows.map((row) => ({
@@ -39,14 +50,7 @@ export class HistorialPreciosService {
     const umbral = this.umbral;
 
     if (!ultimo) {
-      return {
-        ultimoPrecio: null,
-        precioSugerido: null,
-        variacionPct: null,
-        umbral,
-        alerta: false,
-        mensaje: 'Sin historial de precios para esta clase y calidad. Se registrará como primer precio.',
-      };
+      return this.evaluacionSinHistorial();
     }
 
     const ultimoPrecio = Number(ultimo.precio);

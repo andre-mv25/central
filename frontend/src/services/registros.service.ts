@@ -21,16 +21,17 @@ export const registrosService = {
   async crearLote(
     filas: FilaCaptura[],
     confirmarPrecioAnomalo = false,
+    fecha?: string,
   ): Promise<{ total: number; registros: RegistroVenta[] }> {
     const { data } = await api.post('/registros-ventas/bulk', {
       confirmarPrecioAnomalo,
       registros: filas.map((fila) => ({
-        compradorId: fila.compradorId,
-        claseId: fila.claseId,
-        calidadId: fila.calidadId,
+        comprador: fila.comprador,
+        clase: fila.clase,
         bolsas: fila.bolsas,
         kilos: fila.kilos,
         precio: fila.precio,
+        fecha,
       })),
     });
     return data;

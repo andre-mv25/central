@@ -1,16 +1,12 @@
 import { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
-import { SelectEditor, type OpcionSelect } from '../../components/ui/SelectEditor';
 import { gridTheme } from '../../utils/gridTheme';
 import { formatoMoneda } from '../../utils/format';
-import type { Calidad, Clase, Comprador, FilaCaptura } from '../../types';
+import type { FilaCaptura } from '../../types';
 
 interface Props {
   filas: FilaCaptura[];
-  compradores: Comprador[];
-  clases: Clase[];
-  calidades: Calidad[];
   guardando: boolean;
   onCeldaCambiada: (fila: FilaCaptura, campo: string) => void;
   onEliminarFila: (id: string) => void;
@@ -32,58 +28,22 @@ function BotonEliminar(props: ICellRendererParams<FilaCaptura>) {
   );
 }
 
-export function CapturaGrid({
-  filas,
-  compradores,
-  clases,
-  calidades,
-  guardando,
-  onCeldaCambiada,
-  onEliminarFila,
-}: Props) {
-  const opcionesCompradores = useMemo<OpcionSelect[]>(
-    () => compradores.map((c) => ({ value: c.id, label: c.nombre })),
-    [compradores],
-  );
-  const opcionesClases = useMemo<OpcionSelect[]>(
-    () => clases.map((c) => ({ value: c.id, label: c.nombre_clase })),
-    [clases],
-  );
-  const opcionesCalidades = useMemo<OpcionSelect[]>(
-    () => calidades.map((c) => ({ value: c.id, label: c.nombre_calidad })),
-    [calidades],
-  );
-
-  const nombreComprador = useMemo(() => new Map(compradores.map((c) => [c.id, c.nombre])), [compradores]);
-  const nombreClase = useMemo(() => new Map(clases.map((c) => [c.id, c.nombre_clase])), [clases]);
-  const nombreCalidad = useMemo(() => new Map(calidades.map((c) => [c.id, c.nombre_calidad])), [calidades]);
-
+export function CapturaGrid({ filas, guardando, onCeldaCambiada, onEliminarFila }: Props) {
   const columnDefs = useMemo<ColDef<FilaCaptura>[]>(
     () => [
       {
         headerName: 'Comprador',
-        field: 'compradorId',
+        field: 'comprador',
         flex: 1,
         minWidth: 140,
-        cellEditor: SelectEditor,
-        cellEditorParams: { opciones: opcionesCompradores },
-        valueFormatter: (p) => (p.value ? nombreComprador.get(p.value) ?? '' : ''),
+        cellEditor: 'agTextCellEditor',
       },
       {
         headerName: 'Clase',
-        field: 'claseId',
-        width: 110,
-        cellEditor: SelectEditor,
-        cellEditorParams: { opciones: opcionesClases },
-        valueFormatter: (p) => (p.value ? nombreClase.get(p.value) ?? '' : ''),
-      },
-      {
-        headerName: 'Calidad',
-        field: 'calidadId',
-        width: 110,
-        cellEditor: SelectEditor,
-        cellEditorParams: { opciones: opcionesCalidades },
-        valueFormatter: (p) => (p.value ? nombreCalidad.get(p.value) ?? '' : ''),
+        field: 'clase',
+        flex: 1,
+        minWidth: 140,
+        cellEditor: 'agTextCellEditor',
       },
       { headerName: 'Bolsas', field: 'bolsas', width: 90, cellEditor: 'agNumberCellEditor' },
       { headerName: 'Kilos', field: 'kilos', width: 110, cellEditor: 'agNumberCellEditor' },
@@ -95,22 +55,15 @@ export function CapturaGrid({
         cellClassRules: { 'celda-precio-alerta': (p) => p.data?.alertaPrecio === true },
       },
       {
-        headerName: 'Último',
-        colId: 'ultimoPrecio',
-        width: 110,
-        editable: false,
-        valueGetter: (p) => p.data?.ultimoPrecio ?? null,
-        valueFormatter: (p) => (p.value != null ? formatoMoneda(p.value) : '—'),
-      },
-      {
         headerName: 'Total',
         colId: 'total',
         width: 130,
         editable: false,
         valueGetter: (p) => {
+          const bolsas = Number(p.data?.bolsas);
           const kilos = Number(p.data?.kilos);
           const precio = Number(p.data?.precio);
-          return kilos > 0 && precio > 0 ? kilos * precio : null;
+          return bolsas > 0 && kilos > 0 && precio > 0 ? bolsas * kilos * precio : null;
         },
         valueFormatter: (p) => (p.value != null ? formatoMoneda(p.value) : '—'),
         cellStyle: { fontWeight: '600' },
@@ -124,7 +77,7 @@ export function CapturaGrid({
         cellRendererParams: { onEliminarFila },
       },
     ],
-    [opcionesCompradores, opcionesClases, opcionesCalidades, nombreComprador, nombreClase, nombreCalidad, onEliminarFila],
+    [onEliminarFila],
   );
 
   return (

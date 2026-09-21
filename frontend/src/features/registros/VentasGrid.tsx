@@ -32,8 +32,7 @@ export function VentasGrid({ registros, cargando, onEliminar }: Props) {
     () => [
       { headerName: 'Fecha', field: 'fecha', width: 110, valueFormatter: (p) => String(p.value).slice(0, 10) },
       { headerName: 'Comprador', field: 'comprador', flex: 1, minWidth: 130 },
-      { headerName: 'Clase', field: 'clase', width: 90 },
-      { headerName: 'Calidad', field: 'calidad', width: 100 },
+      { headerName: 'Clase', field: 'clase', width: 150 },
       { headerName: 'Bolsas', field: 'bolsas', width: 85 },
       {
         headerName: 'Kilos',
