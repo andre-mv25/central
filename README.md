@@ -126,9 +126,15 @@ movimientos, por lo que cada cambio queda trazable con fecha y usuario. El siste
 no permite que una salida deje el stock negativo y marca los productos que requieren
 reposición.
 
-Para una instalación existente, aplicar primero
-`database/migrations/20260918_inventario.sql` en PostgreSQL. Las instalaciones
+Para una instalación existente, aplicar en PostgreSQL
+`database/migrations/20260918_inventario.sql` y después
+`database/migrations/20260920_venta_inventario.sql`. Las instalaciones
 nuevas crean estas tablas automáticamente al iniciar el contenedor.
+
+Al guardar una venta se genera una **salida** de inventario por `bolsas × kilos`
+contra el producto cuyo nombre coincide con la clase. Si no existe la variedad
+o no hay stock suficiente, la venta no se registra. Al eliminar una venta se
+revierte el stock con una entrada de reverso.
 
 ## Backend
 

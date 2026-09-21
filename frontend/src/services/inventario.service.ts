@@ -10,6 +10,10 @@ export const inventarioService = {
     const response = await api.post<ProductoInventario>('/inventario/productos', data);
     return response.data;
   },
+  async actualizarProducto(id: number, data: Partial<{ nombre: string; codigo?: string; unidadMedida: string; stockMinimo: number; activo: boolean }>) {
+    const response = await api.patch<ProductoInventario>(`/inventario/productos/${id}`, data);
+    return response.data;
+  },
   async movimientos(): Promise<MovimientoInventario[]> {
     const { data } = await api.get('/inventario/movimientos');
     return data;

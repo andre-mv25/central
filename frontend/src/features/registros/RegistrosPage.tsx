@@ -4,11 +4,14 @@ import { KpiCards } from '../dashboard/KpiCards';
 import { ConfirmPriceModal } from '../../components/ui/ConfirmPriceModal';
 import { apiErrorMessage } from '../../services/api';
 import { historialService, reportesService } from '../../services/reportes.service';
+import { inventarioService } from '../../services/inventario.service';
 import { registrosService } from '../../services/registros.service';
 import { CapturaGrid } from './CapturaGrid';
 import { VentasGrid } from './VentasGrid';
 import { fechaHoy, nuevoIdTemporal } from '../../utils/format';
-import type { EvaluacionPrecio, FilaCaptura, Kpis, RegistroVenta } from '../../types';
+import { exportReporteCompleto, type ReporteCompletoData } from '../../utils/excel';
+import type { EvaluacionPrecio, FilaCaptura, Kpis, ProductoInventario, RegistroVenta } from '../../types';
+import { useRealtimeSocket } from '../../hooks/useRealtimeSocket';
 
 interface ModalState {
   abierto: boolean;
@@ -23,21 +26,46 @@ export function RegistrosPage() {
   const [registros, setRegistros] = useState<RegistroVenta[]>([]);
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [filas, setFilas] = useState<FilaCaptura[]>([]);
+  const [productos, setProductos] = useState<ProductoInventario[]>([]);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const [modal, setModal] = useState<ModalState>(MODAL_CERRADO);
 
+  const { connected: socketConnected } = useRealtimeSocket({
+    fecha,
+    onRegistroVenta: (event) => {
+      setRegistros((prev) => {
+        if (event.tipo === 'creado') {
+          return [event.registro as RegistroVenta, ...prev];
+        }
+        if (event.tipo === 'actualizado') {
+          const registro = event.registro as RegistroVenta;
+          return prev.map((r) => (r.id === registro.id ? registro : r));
+        }
+        if (event.tipo === 'eliminado') {
+          return prev.filter((r) => r.id !== (event.registro as { id: number }).id);
+        }
+        return prev;
+      });
+    },
+    onKpis: (event) => {
+      if (event.fecha === fecha) setKpis(event.kpis);
+    },
+  });
+
   const cargarDatos = useCallback(async () => {
     setCargando(true);
     setError('');
     try {
-      const [regs, kpiData] = await Promise.all([
+      const [regs, kpiData, listaProductos] = await Promise.all([
         registrosService.listar({ fecha }),
         reportesService.kpis(fecha),
+        inventarioService.productos(),
       ]);
       setRegistros(regs);
       setKpis(kpiData);
+      setProductos(listaProductos.filter((producto) => producto.activo));
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -121,6 +149,19 @@ export function RegistrosPage() {
       return;
     }
 
+    const sinInventario = filas.find(
+      (f) =>
+        !productos.some(
+          (producto) => producto.nombre.trim().toLowerCase() === f.clase?.trim().toLowerCase(),
+        ),
+    );
+    if (sinInventario) {
+      setError(
+        `No hay inventario para "${sinInventario.clase}". Créala en Inventario y registra una carga antes de vender.`,
+      );
+      return;
+    }
+
     setError('');
     setGuardando(true);
     try {
@@ -169,19 +210,50 @@ export function RegistrosPage() {
     }
   };
 
+  const handleImportarFilas = (filasImportadas: FilaCaptura[]) => {
+    setFilas((prev) => [...prev, ...filasImportadas]);
+  };
+
+  const handleExportarReporteCompleto = async () => {
+    try {
+      const [movimientos, listaProductos] = await Promise.all([
+        inventarioService.movimientos(),
+        inventarioService.productos(),
+      ]);
+      
+      const reporteData: ReporteCompletoData = {
+        ventas: registros,
+        productos: listaProductos,
+        movimientos,
+        fecha,
+        kpis: kpis || undefined,
+      };
+      
+      exportReporteCompleto(reporteData, `reporte-completo-${fecha}`);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  };
+
   return (
     <>
       <div className="page-heading">
-        <div><span className="eyebrow">Operación diaria</span><h2>Registro de ventas</h2><p>Captura ventas por lote y consulta el resultado del día.</p></div>
+        <div><span className="eyebrow">Operación diaria</span><h2>Registro de ventas</h2><p>Cada venta descuenta del inventario bolsas × kilos de la variedad capturada. Si eliminas la venta, el stock se revierte.</p></div>
       </div>
 
       <div className="panel filtro-panel">
-        <div className="section-heading"><div><h2>Consulta de ventas</h2><p>Selecciona la fecha que deseas revisar.</p></div></div>
+        <div className="section-heading">
+          <div><h2>Consulta de ventas</h2><p>Selecciona la fecha que deseas revisar.</p></div>
+          <span className={`socket-status ${socketConnected ? 'connected' : 'disconnected'}`}>{socketConnected ? '🟢 Tiempo real' : '🔴 Desconectado'}</span>
+        </div>
         <div className="filtros filtros-compactos">
           <label>
             Fecha
             <input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} />
           </label>
+          <button className="secundario" onClick={handleExportarReporteCompleto} style={{ marginLeft: 'auto', height: 'fit-content', paddingTop: '10px', paddingBottom: '10px' }}>
+            📊 Exportar Reporte Completo (Ventas + Inventario)
+          </button>
         </div>
       </div>
 
@@ -190,7 +262,7 @@ export function RegistrosPage() {
       {error && <div className="panel error-msg">{error}</div>}
 
       <div className="panel panel-captura">
-        <div className="section-heading"><div><h2>Nueva captura</h2><p>Agrega una o varias ventas antes de guardarlas.</p></div><span className="counter">{filas.length} {filas.length === 1 ? 'fila' : 'filas'}</span></div>
+        <div className="section-heading"><div><h2>Nueva captura</h2><p>Escribe el nombre del producto/variedad manualmente (no necesita existir en inventario).</p></div><span className="counter">{filas.length} {filas.length === 1 ? 'fila' : 'filas'}</span></div>
         <div className="acciones-grid">
           <button className="secundario" onClick={agregarFila} disabled={guardando}>
             + Agregar fila
@@ -201,9 +273,11 @@ export function RegistrosPage() {
         </div>
         <CapturaGrid
           filas={filas}
+          variedades={productos.map((producto) => producto.nombre)}
           guardando={guardando}
           onCeldaCambiada={onCeldaCambiada}
           onEliminarFila={eliminarFila}
+          onImportar={handleImportarFilas}
         />
       </div>
 

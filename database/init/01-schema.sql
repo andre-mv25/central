@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS movimientos_inventario (
     motivo              VARCHAR(200),
     referencia          VARCHAR(100),
     recepcion_id        BIGINT REFERENCES recepciones_inventario (id),
+    registro_venta_id   BIGINT REFERENCES registros_ventas (id) ON DELETE SET NULL,
     usuario_registro_id INTEGER NOT NULL REFERENCES usuarios (id),
     creado_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS movimientos_inventario (
 CREATE INDEX IF NOT EXISTS idx_movimientos_producto_fecha
     ON movimientos_inventario (producto_id, creado_at DESC);
 CREATE INDEX IF NOT EXISTS idx_movimientos_recepcion ON movimientos_inventario (recepcion_id);
+CREATE INDEX IF NOT EXISTS idx_movimientos_registro_venta ON movimientos_inventario (registro_venta_id);
 
 CREATE OR REPLACE FUNCTION set_actualizado_at()
 RETURNS TRIGGER AS $$

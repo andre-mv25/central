@@ -15,11 +15,13 @@ import {
   HistorialPrecioRow,
 } from '../historial-precios/historial-precios.repository';
 import { HistorialPreciosService } from '../historial-precios/historial-precios.service';
+import { InventarioService } from '../inventario/inventario.service';
 import { BulkCreateRegistroVentaDto } from './dto/bulk-create-registro-venta.dto';
 import { CreateRegistroVentaDto } from './dto/create-registro-venta.dto';
 import { QueryRegistrosVentaDto } from './dto/query-registros-venta.dto';
 import { UpdateRegistroVentaDto } from './dto/update-registro-venta.dto';
 import { RegistrosVentasRepository } from './registros-ventas.repository';
+import { RealtimeGateway } from '../../modules/realtime/realtime.gateway';
 import type { DbExecutor } from './registros-ventas.repository';
 
 const CALIDAD_ESTANDAR = 'Estándar';
@@ -34,6 +36,8 @@ export class RegistrosVentasService {
     private readonly compradoresRepository: CompradoresRepository,
     private readonly clasesRepository: ClasesRepository,
     private readonly calidadesRepository: CalidadesRepository,
+    private readonly inventarioService: InventarioService,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   private async resolverCatalogos(
@@ -109,6 +113,16 @@ export class RegistrosVentasService {
         },
         client,
       );
+      await this.inventarioService.aplicarSalidaVenta(
+        {
+          nombreProducto: dto.clase,
+          bolsas: dto.bolsas,
+          kilos: dto.kilos,
+          registroVentaId: registro.id,
+          usuarioId: usuario.id,
+        },
+        client,
+      );
       await this.registrarHistorialSiCambia(
         client,
         ids.claseId,
@@ -117,7 +131,13 @@ export class RegistrosVentasService {
         usuario.id,
       );
       await client.query('COMMIT');
-      return this.findById(registro.id);
+      const nuevo = await this.findById(registro.id);
+      this.realtimeGateway.emitirRegistroVenta(dto.fecha ?? new Date().toISOString().split('T')[0], {
+        tipo: 'creado',
+        registro: nuevo,
+        timestamp: new Date().toISOString(),
+      });
+      return nuevo;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -176,6 +196,16 @@ export class RegistrosVentasService {
           client,
         );
         idsGuardados.push(registro.id);
+        await this.inventarioService.aplicarSalidaVenta(
+          {
+            nombreProducto: item.clase,
+            bolsas: item.bolsas,
+            kilos: item.kilos,
+            registroVentaId: registro.id,
+            usuarioId: usuario.id,
+          },
+          client,
+        );
         await this.registrarHistorialSiCambia(
           client,
           item.claseId,
@@ -193,18 +223,27 @@ export class RegistrosVentasService {
     }
 
     const registros = await Promise.all(idsGuardados.map((id) => this.repository.findById(id)));
+    const fecha = dto.registros[0]?.fecha ?? new Date().toISOString().split('T')[0];
+    for (const r of registros) {
+      if (r) {
+        this.realtimeGateway.emitirRegistroVenta(fecha, {
+          tipo: 'creado',
+          registro: r,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
     return { total: registros.length, registros };
   }
 
-  async update(id: number, dto: UpdateRegistroVentaDto) {
-    await this.findById(id);
+  async update(id: number, dto: UpdateRegistroVentaDto, usuario: AuthUser) {
+    const actual = await this.findById(id);
 
     if (dto.precio || dto.claseId || dto.calidadId) {
-      const actual = await this.repository.findById(id);
       const evaluacion = await this.historialService.evaluarPrecio(
-        dto.claseId ?? actual!.clase_id,
-        dto.calidadId ?? actual!.calidad_id,
-        dto.precio ?? Number(actual!.precio),
+        dto.claseId ?? actual.clase_id,
+        dto.calidadId ?? actual.calidad_id,
+        dto.precio ?? Number(actual.precio),
       );
       if (evaluacion.alerta) {
         throw new UnprocessableEntityException({
@@ -215,16 +254,72 @@ export class RegistrosVentasService {
       }
     }
 
-    const updated = await this.repository.update(id, dto);
-    if (!updated) {
-      throw new NotFoundException(`Registro de venta ${id} no encontrado`);
+    const cambiaInventario =
+      dto.bolsas !== undefined || dto.kilos !== undefined || dto.claseId !== undefined;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const updated = await this.repository.update(id, dto, client);
+      if (!updated) {
+        throw new NotFoundException(`Registro de venta ${id} no encontrado`);
+      }
+      if (cambiaInventario) {
+        await this.inventarioService.reponerPorVenta(id, usuario.id, client);
+        const clase = dto.claseId
+          ? await this.clasesRepository.findById(dto.claseId)
+          : { nombre_clase: actual.clase };
+        if (!clase) {
+          throw new NotFoundException(`Clase ${dto.claseId} no encontrada`);
+        }
+        await this.inventarioService.aplicarSalidaVenta(
+          {
+            nombreProducto: clase.nombre_clase,
+            bolsas: dto.bolsas ?? actual.bolsas,
+            kilos: dto.kilos ?? Number(actual.kilos),
+            registroVentaId: id,
+            usuarioId: usuario.id,
+          },
+          client,
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    return this.findById(id);
+    const actualizado = await this.findById(id);
+    const fechaStr = actualizado.fecha instanceof Date ? actualizado.fecha.toISOString().split('T')[0] : actualizado.fecha;
+    this.realtimeGateway.emitirRegistroVenta(fechaStr, {
+      tipo: 'actualizado',
+      registro: actualizado,
+      timestamp: new Date().toISOString(),
+    });
+    return actualizado;
   }
 
-  async remove(id: number) {
-    await this.findById(id);
-    await this.repository.remove(id);
+  async remove(id: number, usuario: AuthUser) {
+    const registro = await this.findById(id);
+    const fecha = registro.fecha instanceof Date ? registro.fecha.toISOString().split('T')[0] : registro.fecha;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.inventarioService.reponerPorVenta(id, usuario.id, client);
+      await this.repository.remove(id, client);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    this.realtimeGateway.emitirRegistroVenta(fecha, {
+      tipo: 'eliminado',
+      registro: { id },
+      timestamp: new Date().toISOString(),
+    });
     return { id, eliminado: true };
   }
 }

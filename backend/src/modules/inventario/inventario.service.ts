@@ -1,17 +1,19 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PG_POOL } from '../../config/database.constants';
 import { CreateMovimientoDto } from './dto/create-movimiento.dto';
 import { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 import { CreateRecepcionDto } from './dto/create-recepcion.dto';
 import { InventarioRepository, ProductoInventarioRow } from './inventario.repository';
+import { RealtimeGateway } from '../../modules/realtime/realtime.gateway';
 
 @Injectable()
 export class InventarioService {
   constructor(
     private readonly repository: InventarioRepository,
     @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   private productoDto(row: ProductoInventarioRow) {
@@ -71,6 +73,87 @@ export class InventarioService {
     return cantidad;
   }
 
+  cantidadPorVenta(bolsas: number, kilos: number) {
+    return Number((Number(bolsas) * Number(kilos)).toFixed(3));
+  }
+
+  async aplicarSalidaVenta(
+    data: {
+      nombreProducto: string;
+      bolsas: number;
+      kilos: number;
+      registroVentaId: number;
+      usuarioId: number;
+    },
+    client: PoolClient,
+  ) {
+    const cantidad = this.cantidadPorVenta(data.bolsas, data.kilos);
+    const producto = await this.repository.lockProductoByNombre(data.nombreProducto.trim(), client);
+    if (!producto) {
+      throw new BadRequestException(
+        `No hay inventario para "${data.nombreProducto}". Créala primero en Inventario y registra una carga.`,
+      );
+    }
+    if (!producto.activo) {
+      throw new BadRequestException(`"${producto.nombre}" está inactiva y no se puede vender`);
+    }
+    const nuevoStock = Number(producto.stock_actual) + this.cambioStock('salida', cantidad);
+    if (nuevoStock < 0) {
+      throw new BadRequestException(
+        `Stock insuficiente de ${producto.nombre}. Disponible: ${producto.stock_actual} ${producto.unidad_medida}. Requerido: ${cantidad}`,
+      );
+    }
+    await this.repository.insertMovimiento({
+      productoId: producto.id,
+      tipo: 'salida',
+      cantidad,
+      motivo: 'Venta',
+      referencia: `Venta #${data.registroVentaId}`,
+      registroVentaId: data.registroVentaId,
+      usuarioId: data.usuarioId,
+    }, client);
+    await this.emitirActualizacionInventario();
+  }
+
+  async reponerPorVenta(registroVentaId: number, usuarioId: number, client: PoolClient) {
+    const movimientos = await this.repository.findMovimientosByRegistroVenta(registroVentaId, client);
+    const netoPorProducto = new Map<number, number>();
+    for (const movimiento of movimientos) {
+      const cantidad = Number(movimiento.cantidad);
+      const actual = netoPorProducto.get(movimiento.producto_id) ?? 0;
+      if (movimiento.tipo === 'salida') netoPorProducto.set(movimiento.producto_id, actual + cantidad);
+      if (movimiento.tipo === 'entrada') netoPorProducto.set(movimiento.producto_id, actual - cantidad);
+    }
+    for (const [productoId, neto] of netoPorProducto) {
+      if (neto <= 0) continue;
+      const producto = await this.repository.lockProducto(productoId, client);
+      if (!producto) continue;
+      await this.repository.insertMovimiento({
+        productoId,
+        tipo: 'entrada',
+        cantidad: Number(neto.toFixed(3)),
+        motivo: 'Reverso de venta',
+        referencia: `Venta #${registroVentaId}`,
+        registroVentaId,
+        usuarioId,
+      }, client);
+    }
+    await this.emitirActualizacionInventario();
+  }
+
+  private async emitirActualizacionInventario() {
+    try {
+      const productos = await this.repository.findProductos();
+      this.realtimeGateway.emitirInventario({
+        tipo: 'actualizado',
+        productos,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      // Silenciar errores de emisión para no afectar la operación principal
+    }
+  }
+
   async registrarMovimiento(dto: CreateMovimientoDto, user: AuthUser) {
     if ((dto.tipo === 'entrada' || dto.tipo === 'salida') && dto.cantidad < 0) {
       throw new BadRequestException('La cantidad de una entrada o salida debe ser positiva');
@@ -88,6 +171,7 @@ export class InventarioService {
         motivo: dto.motivo?.trim(), referencia: dto.referencia?.trim(), usuarioId: user.id,
       }, client);
       await client.query('COMMIT');
+      await this.emitirActualizacionInventario();
       return { ...movimiento, stock_actual: nuevoStock };
     } catch (error) {
       await client.query('ROLLBACK');
@@ -119,6 +203,7 @@ export class InventarioService {
         }, client));
       }
       await client.query('COMMIT');
+      await this.emitirActualizacionInventario();
       return { ...recepcion, movimientos, total_lineas: movimientos.length };
     } catch (error) {
       await client.query('ROLLBACK');

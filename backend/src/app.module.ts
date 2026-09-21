@@ -16,6 +16,7 @@ import { RegistrosVentasModule } from './modules/registros-ventas/registros-vent
 import { HistorialPreciosModule } from './modules/historial-precios/historial-precios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { InventarioModule } from './modules/inventario/inventario.module';
     HistorialPreciosModule,
     ReportesModule,
     InventarioModule,
+    RealtimeModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -59,6 +59,19 @@ export class InventarioRepository {
     return rows[0] ?? null;
   }
 
+  async lockProductoByNombre(nombre: string, executor: PoolClient): Promise<ProductoInventarioRow | null> {
+    const { rows } = await executor.query<ProductoInventarioRow>(
+      `SELECT p.*, COALESCE((SELECT SUM(CASE m.tipo WHEN 'entrada' THEN m.cantidad
+          WHEN 'salida' THEN -m.cantidad ELSE m.cantidad END) FROM movimientos_inventario m
+          WHERE m.producto_id = p.id), 0) AS stock_actual
+         FROM productos p
+        WHERE lower(trim(p.nombre)) = lower(trim($1))
+        FOR UPDATE OF p`,
+      [nombre],
+    );
+    return rows[0] ?? null;
+  }
+
   async createProducto(data: { nombre: string; codigo?: string; unidadMedida?: string; stockMinimo?: number }) {
     const { rows } = await this.pool.query<ProductoInventarioRow>(
       `INSERT INTO productos (nombre, codigo, unidad_medida, stock_minimo)
@@ -79,13 +92,49 @@ export class InventarioRepository {
     return rows[0] ?? null;
   }
 
-  async insertMovimiento(data: { productoId: number; tipo: string; cantidad: number; motivo?: string; referencia?: string; recepcionId?: number; usuarioId: number }, executor: DbExecutor) {
+  async insertMovimiento(data: {
+    productoId: number;
+    tipo: string;
+    cantidad: number;
+    motivo?: string;
+    referencia?: string;
+    recepcionId?: number;
+    registroVentaId?: number;
+    usuarioId: number;
+  }, executor: DbExecutor) {
     const { rows } = await executor.query(
-      `INSERT INTO movimientos_inventario (producto_id, tipo, cantidad, motivo, referencia, recepcion_id, usuario_registro_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [data.productoId, data.tipo, data.cantidad, data.motivo || null, data.referencia || null, data.recepcionId || null, data.usuarioId],
+      `INSERT INTO movimientos_inventario
+         (producto_id, tipo, cantidad, motivo, referencia, recepcion_id, registro_venta_id, usuario_registro_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [
+        data.productoId,
+        data.tipo,
+        data.cantidad,
+        data.motivo || null,
+        data.referencia || null,
+        data.recepcionId || null,
+        data.registroVentaId || null,
+        data.usuarioId,
+      ],
     );
     return rows[0];
+  }
+
+  async findMovimientosByRegistroVenta(registroVentaId: number, executor: DbExecutor) {
+    const { rows } = await executor.query<{
+      id: number;
+      producto_id: number;
+      tipo: string;
+      cantidad: string;
+      motivo: string | null;
+    }>(
+      `SELECT id, producto_id, tipo, cantidad, motivo
+         FROM movimientos_inventario
+        WHERE registro_venta_id = $1
+        ORDER BY id`,
+      [registroVentaId],
+    );
+    return rows;
   }
 
   async createRecepcion(data: { proveedor?: string; referencia?: string; fecha?: string; notas?: string; usuarioId: number }, executor: PoolClient) {

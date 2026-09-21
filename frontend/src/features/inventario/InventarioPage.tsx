@@ -3,10 +3,13 @@ import { apiErrorMessage } from '../../services/api';
 import { inventarioService } from '../../services/inventario.service';
 import type { MovimientoInventario, ProductoInventario } from '../../types';
 import { fechaHoy, formatoNumero } from '../../utils/format';
+import { exportInventarioToExcel, exportMovimientosToExcel, importFromExcel, parseInventarioRow, parseMovimientoRow, ExportFormat } from '../../utils/excel';
+import { useRealtimeSocket } from '../../hooks/useRealtimeSocket';
 
 type ItemRecepcion = { productoId: string; cantidad: string };
 
 const ITEM_VACIO: ItemRecepcion = { productoId: '', cantidad: '' };
+const ITEMS_POR_PAGINA = 15;
 
 export function InventarioPage() {
   const [productos, setProductos] = useState<ProductoInventario[]>([]);
@@ -14,9 +17,16 @@ export function InventarioPage() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [producto, setProducto] = useState({ nombre: '', codigo: '', unidadMedida: 'kg', stockMinimo: '0' });
+  const [producto, setProducto] = useState({ nombre: '', unidadMedida: 'kg', stockMinimo: '0' });
   const [movimiento, setMovimiento] = useState({ productoId: '', tipo: 'salida', cantidad: '', motivo: '', referencia: '' });
   const [recepcion, setRecepcion] = useState({ proveedor: '', referencia: '', fecha: fechaHoy(), notas: '', items: [{ ...ITEM_VACIO }] });
+  
+  const [filtroProducto, setFiltroProducto] = useState('');
+  const [filtroMovimientoFecha, setFiltroMovimientoFecha] = useState({ desde: '', hasta: '' });
+  const [paginaProductos, setPaginaProductos] = useState(1);
+  const [paginaMovimientos, setPaginaMovimientos] = useState(1);
+  const [editandoStockMinimo, setEditandoStockMinimo] = useState<number | null>(null);
+  const [nuevoStockMinimo, setNuevoStockMinimo] = useState('');
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -31,6 +41,15 @@ export function InventarioPage() {
     }
   }, []);
 
+  // Escuchar actualizaciones de inventario en tiempo real
+  useRealtimeSocket({
+    onInventario: (event) => {
+      setProductos(event.productos);
+      // Recargar movimientos para que se vean los nuevos
+      inventarioService.movimientos().then(setMovimientos);
+    },
+  });
+
   useEffect(() => { void cargar(); }, [cargar]);
 
   const resumen = useMemo(() => ({
@@ -38,6 +57,29 @@ export function InventarioPage() {
     bajoMinimo: productos.filter((p) => p.activo && p.requiere_reposicion).length,
     unidades: productos.reduce((total, p) => total + p.stock_actual, 0),
   }), [productos]);
+
+  const productosFiltrados = useMemo(() => 
+    productos.filter(p => 
+      p.nombre.toLowerCase().includes(filtroProducto.toLowerCase()) ||
+      (p.codigo && p.codigo.toLowerCase().includes(filtroProducto.toLowerCase()))
+    ), 
+  [productos, filtroProducto]);
+
+  const movimientosFiltrados = useMemo(() => 
+    movimientos.filter(m => {
+      const fecha = new Date(m.creado_at);
+      const desde = filtroMovimientoFecha.desde ? new Date(filtroMovimientoFecha.desde) : null;
+      const hasta = filtroMovimientoFecha.hasta ? new Date(filtroMovimientoFecha.hasta + 'T23:59:59') : null;
+      return (!desde || fecha >= desde) && (!hasta || fecha <= hasta);
+    }),
+  [movimientos, filtroMovimientoFecha]);
+
+  const productosPaginados = useMemo(() => 
+    productosFiltrados.slice((paginaProductos - 1) * ITEMS_POR_PAGINA, paginaProductos * ITEMS_POR_PAGINA),
+  [productosFiltrados, paginaProductos]);
+
+  const totalPaginasProductos = Math.ceil(productosFiltrados.length / ITEMS_POR_PAGINA);
+  const totalPaginasMovimientos = Math.ceil(movimientosFiltrados.length / ITEMS_POR_PAGINA);
 
   const ejecutar = async (accion: () => Promise<unknown>) => {
     setError(''); setGuardando(true);
@@ -49,10 +91,10 @@ export function InventarioPage() {
   const guardarProducto = async (event: FormEvent) => {
     event.preventDefault();
     const ok = await ejecutar(() => inventarioService.crearProducto({
-      nombre: producto.nombre, codigo: producto.codigo || undefined, unidadMedida: producto.unidadMedida,
+      nombre: producto.nombre, unidadMedida: producto.unidadMedida,
       stockMinimo: Number(producto.stockMinimo),
     }));
-    if (ok) setProducto({ nombre: '', codigo: '', unidadMedida: 'kg', stockMinimo: '0' });
+    if (ok) setProducto({ nombre: '', unidadMedida: 'kg', stockMinimo: '0' });
   };
 
   const guardarMovimiento = async (event: FormEvent) => {
@@ -78,26 +120,131 @@ export function InventarioPage() {
     if (ok) setRecepcion({ proveedor: '', referencia: '', fecha: fechaHoy(), notas: '', items: [{ ...ITEM_VACIO }] });
   };
 
+  const reponerProducto = async (productoId: number) => {
+    const prod = productos.find(p => p.id === productoId);
+    if (!prod) return;
+    
+    const cantidad = window.prompt(`Cantidad a reponer para "${prod.nombre}" (actual: ${formatoNumero(prod.stock_actual, 3)} ${prod.unidad_medida}):`);
+    if (!cantidad) return;
+    
+    const cant = Number(cantidad);
+    if (isNaN(cant) || cant <= 0) return;
+    
+    await ejecutar(() => inventarioService.movimiento({
+      productoId: prod.id, tipo: 'entrada', cantidad: cant,
+      motivo: 'Reposición de inventario', referencia: undefined,
+    }));
+  };
+
+  const toggleActivo = async (producto: ProductoInventario) => {
+    await ejecutar(() => inventarioService.actualizarProducto(producto.id, { activo: !producto.activo }));
+  };
+
+  const iniciarEdicionStockMinimo = (producto: ProductoInventario) => {
+    setEditandoStockMinimo(producto.id);
+    setNuevoStockMinimo(producto.stock_minimo.toString());
+  };
+
+  const guardarStockMinimo = async (productoId: number) => {
+    const stock = Number(nuevoStockMinimo);
+    if (isNaN(stock) || stock < 0) return;
+    
+    await ejecutar(() => inventarioService.actualizarProducto(productoId, { stockMinimo: stock }));
+    setEditandoStockMinimo(null);
+    setNuevoStockMinimo('');
+  };
+
+  const handleExportInventario = (format: ExportFormat) => {
+    if (productos.length === 0) { alert('No hay datos para exportar'); return; }
+    exportInventarioToExcel(productos, `inventario-${fechaHoy()}`, format);
+  };
+
+  const handleExportMovimientos = (format: ExportFormat) => {
+    if (movimientos.length === 0) { alert('No hay datos para exportar'); return; }
+    exportMovimientosToExcel(movimientos, `movimientos-inventario-${fechaHoy()}`, format);
+  };
+
+  const handleImportInventario = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { data, errors } = await importFromExcel(file, (row) => parseInventarioRow(row));
+      
+      if (errors.length > 0) {
+        alert(`Se encontraron ${errors.length} errores:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+      }
+      
+      if (data.length > 0) {
+        for (const item of data) {
+          await inventarioService.crearProducto(item);
+        }
+        await cargar();
+      }
+      
+      if (event.target) event.target.value = '';
+    } catch (error) {
+      alert(`Error al importar: ${error instanceof Error ? error.message : 'Desconocido'}`);
+    }
+  };
+
+  const handleImportMovimientos = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { data, errors } = await importFromExcel(file, (row) => parseMovimientoRow(row, productos));
+      
+      if (errors.length > 0) {
+        alert(`Se encontraron ${errors.length} errores:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+      }
+      
+      if (data.length > 0) {
+        for (const item of data) {
+          await inventarioService.movimiento(item);
+        }
+        await cargar();
+      }
+      
+      if (event.target) event.target.value = '';
+    } catch (error) {
+      alert(`Error al importar: ${error instanceof Error ? error.message : 'Desconocido'}`);
+    }
+  };
+
   return (
     <>
-      <div className="page-heading"><div><span className="eyebrow">Control de existencias</span><h2>Inventario</h2><p>Controla kilos, cargas y necesidades de reposición por variedad o lote.</p></div></div>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">Control de existencias</span>
+          <h2>Inventario</h2>
+          <p>Las ventas descuentan existencias automáticamente. Aquí registras cargas, ajustes y el kardex.</p>
+        </div>
+      </div>
+
       {error && <div className="panel error-msg">{error}</div>}
+
       <section className="kpis">
         <article className="kpi"><div className="etiqueta">Variedades / lotes activos</div><div className="valor">{resumen.productos}</div></article>
         <article className="kpi alerta-kpi"><div className="etiqueta">Requieren reposición</div><div className="valor">{resumen.bajoMinimo}</div></article>
-        <article className="kpi"><div className="etiqueta">Kilos registrados</div><div className="valor">{formatoNumero(resumen.unidades, 0)}</div></article>
+        <article className="kpi"><div className="etiqueta">Unidades registradas</div><div className="valor">{formatoNumero(resumen.unidades, 0)}</div></article>
       </section>
+
       <div className="inventario-columnas">
-        <section className="panel"><div className="section-heading"><div><h2>Nueva variedad o lote</h2><p>Ejemplo: papa blanca, papa roja o un lote identificado.</p></div></div>
+        <section className="panel">
+          <div className="section-heading">
+            <div><h2>Nueva variedad o lote</h2><p>Ejemplo: papa blanca, papa roja o un lote identificado.</p></div>
+          </div>
           <form className="formulario" onSubmit={guardarProducto}>
             <label>Variedad o lote<input required placeholder="Ej. Papa blanca" value={producto.nombre} onChange={(e) => setProducto({ ...producto, nombre: e.target.value })} /></label>
-            <label>Código de lote<input placeholder="Opcional" value={producto.codigo} onChange={(e) => setProducto({ ...producto, codigo: e.target.value })} /></label>
             <label>Unidad<select value={producto.unidadMedida} onChange={(e) => setProducto({ ...producto, unidadMedida: e.target.value })}><option value="kg">Kilogramo</option><option value="costal">Costal</option><option value="caja">Caja</option></select></label>
             <label>Mínimo para reponer<input required min="0" step="0.001" type="number" value={producto.stockMinimo} onChange={(e) => setProducto({ ...producto, stockMinimo: e.target.value })} /></label>
             <button disabled={guardando}>Agregar variedad</button>
           </form>
         </section>
-        <section className="panel"><div className="section-heading"><div><h2>Movimiento individual</h2><p>Registra salida, entrada aislada o corrección de papa.</p></div></div>
+
+        <section className="panel">
+          <div className="section-heading"><div><h2>Movimiento individual</h2><p>Registra salida, entrada aislada o corrección de papa.</p></div></div>
           <form className="formulario" onSubmit={guardarMovimiento}>
             <label>Variedad o lote<select required value={movimiento.productoId} onChange={(e) => setMovimiento({ ...movimiento, productoId: e.target.value })}><option value="">Selecciona una variedad</option>{productos.filter((p) => p.activo).map((p) => <option key={p.id} value={p.id}>{p.nombre} — {formatoNumero(p.stock_actual, 3)} {p.unidad_medida}</option>)}</select></label>
             <label>Tipo<select value={movimiento.tipo} onChange={(e) => setMovimiento({ ...movimiento, tipo: e.target.value })}><option value="salida">Salida de papa</option><option value="entrada">Entrada individual</option><option value="ajuste">Ajuste (+ o -)</option></select></label>
@@ -107,15 +254,186 @@ export function InventarioPage() {
           </form>
         </section>
       </div>
-      <section className="panel recepcion-panel"><div className="section-heading"><div><h2>Registrar carga de papa</h2><p>Una carga puede incluir varias variedades o lotes y se guarda como una sola operación.</p></div><span className="counter">{recepcion.items.length} {recepcion.items.length === 1 ? 'variedad' : 'variedades'}</span></div>
+
+      <section className="panel recepcion-panel">
+        <div className="section-heading"><div><h2>Registrar carga de papa</h2><p>Una carga puede incluir varias variedades o lotes y se guarda como una sola operación.</p></div><span className="counter">{recepcion.items.length} {recepcion.items.length === 1 ? 'variedad' : 'variedades'}</span></div>
         <form onSubmit={guardarRecepcion}>
-          <div className="formulario formulario-horizontal"><label>Proveedor<input value={recepcion.proveedor} onChange={(e) => setRecepcion({ ...recepcion, proveedor: e.target.value })} /></label><label>Referencia / folio<input value={recepcion.referencia} onChange={(e) => setRecepcion({ ...recepcion, referencia: e.target.value })} /></label><label>Fecha<input required type="date" value={recepcion.fecha} onChange={(e) => setRecepcion({ ...recepcion, fecha: e.target.value })} /></label></div>
+          <div className="formulario formulario-horizontal">
+            <label>Proveedor<input value={recepcion.proveedor} onChange={(e) => setRecepcion({ ...recepcion, proveedor: e.target.value })} /></label>
+            <label>Referencia / folio<input value={recepcion.referencia} onChange={(e) => setRecepcion({ ...recepcion, referencia: e.target.value })} /></label>
+            <label>Fecha<input required type="date" value={recepcion.fecha} onChange={(e) => setRecepcion({ ...recepcion, fecha: e.target.value })} /></label>
+          </div>
           <div className="lineas-recepcion">{recepcion.items.map((item, indice) => <div className="linea-recepcion" key={indice}><select required value={item.productoId} onChange={(e) => cambiarItem(indice, 'productoId', e.target.value)}><option value="">Variedad o lote</option>{productos.filter((p) => p.activo).map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</option>)}</select><input required type="number" min="0.001" step="0.001" value={item.cantidad} placeholder="Kilos o cantidad recibida" onChange={(e) => cambiarItem(indice, 'cantidad', e.target.value)} />{recepcion.items.length > 1 && <button className="secundario" type="button" onClick={() => setRecepcion({ ...recepcion, items: recepcion.items.filter((_, i) => i !== indice) })}>Quitar</button>}</div>)}</div>
           <div className="acciones-grid"><button className="secundario" type="button" onClick={() => setRecepcion({ ...recepcion, items: [...recepcion.items, { ...ITEM_VACIO }] })}>+ Agregar línea</button><button disabled={guardando}>Guardar carga</button></div>
         </form>
       </section>
-      <section className="panel"><div className="section-heading"><div><h2>Existencias y planificación</h2><p>Las variedades marcadas requieren una nueva compra o carga.</p></div></div><div className="tabla-scroll"><table><thead><tr><th>Variedad / lote</th><th>Código</th><th>Disponible</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{productos.map((p) => <tr key={p.id} className={p.requiere_reposicion && p.activo ? 'fila-alerta' : ''}><td>{p.nombre}</td><td>{p.codigo ?? '—'}</td><td>{formatoNumero(p.stock_actual, 3)} {p.unidad_medida}</td><td>{formatoNumero(p.stock_minimo, 3)}</td><td>{!p.activo ? <span className="badge">Inactivo</span> : p.requiere_reposicion ? <span className="badge alerta">Reponer</span> : <span className="badge correcto">Disponible</span>}</td></tr>)}{!cargando && productos.length === 0 && <tr><td colSpan={5} className="vacio">Aún no hay variedades o lotes registrados.</td></tr>}</tbody></table></div></section>
-      <section className="panel"><div className="section-heading"><div><h2>Últimos movimientos</h2><p>Historial reciente de entradas, salidas y ajustes de papa.</p></div></div><div className="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Variedad / lote</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Usuario</th></tr></thead><tbody>{movimientos.map((m) => <tr key={m.id}><td>{new Date(m.creado_at).toLocaleString('es-MX')}</td><td>{m.producto}</td><td><span className={`badge movimiento-${m.tipo}`}>{m.tipo}</span></td><td>{m.tipo === 'salida' ? '-' : ''}{formatoNumero(Number(m.cantidad), 3)} {m.unidad_medida}</td><td>{m.motivo ?? '—'}</td><td>{m.usuario}</td></tr>)}{!cargando && movimientos.length === 0 && <tr><td colSpan={6} className="vacio">Todavía no hay movimientos de inventario.</td></tr>}</tbody></table></div></section>
+
+      <section className="panel">
+        <div className="section-heading">
+          <div><h2>Existencias y planificación</h2><p>Las variedades marcadas requieren una nueva compra o carga.</p></div>
+          <div className="toolbar-group">
+            <input 
+              type="text" 
+              placeholder="Buscar variedad o código..." 
+              value={filtroProducto} 
+              onChange={(e) => { setFiltroProducto(e.target.value); setPaginaProductos(1); }}
+              style={{ width: '250px', padding: '6px 10px', fontSize: '13px' }}
+            />
+            <label className="toolbar-label">Exportar:</label>
+            <button className="secundario" onClick={() => handleExportInventario('xlsx')} disabled={productos.length === 0}>Excel</button>
+            <button className="secundario" onClick={() => handleExportInventario('csv')} disabled={productos.length === 0}>CSV</button>
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              style={{ display: 'none' }}
+              id="import-inventario"
+              onChange={handleImportInventario}
+            />
+            <label htmlFor="import-inventario" className="secundario" style={{ cursor: 'pointer' }}>Importar</label>
+          </div>
+        </div>
+        <div className="tabla-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Variedad / lote</th>
+                <th>Disponible</th>
+                <th>Mínimo</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {productosPaginados.map((p) => (
+                <tr key={p.id} className={p.requiere_reposicion && p.activo ? 'fila-alerta' : ''}>
+                  <td>{p.nombre}</td>
+                  <td>{formatoNumero(p.stock_actual, 3)} {p.unidad_medida}</td>
+                  <td>
+                    {editandoStockMinimo === p.id ? (
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <input 
+                          type="number" 
+                          step="0.001" 
+                          min="0" 
+                          value={nuevoStockMinimo} 
+                          onChange={(e) => setNuevoStockMinimo(e.target.value)}
+                          style={{ width: '80px', padding: '4px 8px' }}
+                          onKeyDown={(e) => e.key === 'Enter' && guardarStockMinimo(p.id)}
+                          onBlur={() => guardarStockMinimo(p.id)}
+                          autoFocus
+                        />
+                        <button className="secundario" onClick={() => guardarStockMinimo(p.id)} style={{ padding: '2px 8px', fontSize: '11px' }}>Guardar</button>
+                        <button className="secundario" onClick={() => { setEditandoStockMinimo(null); setNuevoStockMinimo(''); }} style={{ padding: '2px 8px', fontSize: '11px' }}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <span onClick={() => iniciarEdicionStockMinimo(p)} style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--color-primary)' }}>
+                        {formatoNumero(p.stock_minimo, 3)}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {!p.activo ? (
+                      <span className="badge">Inactivo</span>
+                    ) : p.requiere_reposicion ? (
+                      <span className="badge alerta">Reponer</span>
+                    ) : (
+                      <span className="badge correcto">Disponible</span>
+                    )}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {p.activo && p.requiere_reposicion && (
+                      <button className="secundario" onClick={() => reponerProducto(p.id)} style={{ padding: '4px 10px', fontSize: '12px' }}>Reponer</button>
+                    )}
+                    <button className="secundario" onClick={() => toggleActivo(p)} style={{ padding: '4px 10px', fontSize: '12px' }}>
+                      {p.activo ? 'Desactivar' : 'Activar'}
+                    </button>
+                    {editandoStockMinimo !== p.id && (
+                      <button className="secundario" onClick={() => iniciarEdicionStockMinimo(p)} style={{ padding: '4px 10px', fontSize: '12px' }}>Editar mín.</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!cargando && productosFiltrados.length === 0 && <tr><td colSpan={5} className="vacio">Aún no hay variedades o lotes registrados.</td></tr>}
+              {productosFiltrados.length > ITEMS_POR_PAGINA && (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                      <button className="secundario" onClick={() => setPaginaProductos(p => Math.max(1, p - 1))} disabled={paginaProductos === 1}>Anterior</button>
+                      <span>Página {paginaProductos} de {totalPaginasProductos} ({productosFiltrados.length} resultados)</span>
+                      <button className="secundario" onClick={() => setPaginaProductos(p => Math.min(totalPaginasProductos, p + 1))} disabled={paginaProductos === totalPaginasProductos}>Siguiente</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-heading">
+          <div><h2>Últimos movimientos</h2><p>Historial reciente de entradas, salidas y ajustes de papa.</p></div>
+          <div className="toolbar-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="toolbar-label">Desde:</span>
+              <input type="date" value={filtroMovimientoFecha.desde} onChange={(e) => setFiltroMovimientoFecha({ ...filtroMovimientoFecha, desde: e.target.value })} />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="toolbar-label">Hasta:</span>
+              <input type="date" value={filtroMovimientoFecha.hasta} onChange={(e) => setFiltroMovimientoFecha({ ...filtroMovimientoFecha, hasta: e.target.value })} />
+            </label>
+            <label className="toolbar-label">Exportar:</label>
+            <button className="secundario" onClick={() => handleExportMovimientos('xlsx')} disabled={movimientos.length === 0}>Excel</button>
+            <button className="secundario" onClick={() => handleExportMovimientos('csv')} disabled={movimientos.length === 0}>CSV</button>
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              style={{ display: 'none' }}
+              id="import-movimientos"
+              onChange={handleImportMovimientos}
+            />
+            <label htmlFor="import-movimientos" className="secundario" style={{ cursor: 'pointer' }}>Importar</label>
+          </div>
+        </div>
+        <div className="tabla-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Variedad / lote</th>
+                <th>Tipo</th>
+                <th>Cantidad</th>
+                <th>Motivo</th>
+                <th>Usuario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movimientosFiltrados.slice((paginaMovimientos - 1) * ITEMS_POR_PAGINA, paginaMovimientos * ITEMS_POR_PAGINA).map((m) => (
+                <tr key={m.id}>
+                  <td>{new Date(m.creado_at).toLocaleString('es-MX')}</td>
+                  <td>{m.producto}</td>
+                  <td><span className={`badge movimiento-${m.tipo}`}>{m.tipo}</span></td>
+                  <td>{m.tipo === 'salida' ? '-' : ''}{formatoNumero(Number(m.cantidad), 3)} {m.unidad_medida}</td>
+                  <td>{m.motivo ?? '—'}</td>
+                  <td>{m.usuario}</td>
+                </tr>
+              ))}
+              {!cargando && movimientosFiltrados.length === 0 && <tr><td colSpan={6} className="vacio">Todavía no hay movimientos de inventario.</td></tr>}
+              {movimientosFiltrados.length > ITEMS_POR_PAGINA && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                      <button className="secundario" onClick={() => setPaginaMovimientos(p => Math.max(1, p - 1))} disabled={paginaMovimientos === 1}>Anterior</button>
+                      <span>Página {paginaMovimientos} de {totalPaginasMovimientos} ({movimientosFiltrados.length} resultados)</span>
+                      <button className="secundario" onClick={() => setPaginaMovimientos(p => Math.min(totalPaginasMovimientos, p + 1))} disabled={paginaMovimientos === totalPaginasMovimientos}>Siguiente</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
