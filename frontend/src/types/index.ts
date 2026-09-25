@@ -80,11 +80,46 @@ export interface ProductoInventario {
   id: number;
   nombre: string;
   codigo: string | null;
+  numero_lote: string | null;
+  fecha_cosecha: string | null;
+  fecha_caducidad: string | null;
+  origen: string | null;
   unidad_medida: string;
   stock_minimo: number;
-  stock_actual: number;
+  stock_real: number;
+  stock_reservado: number;
+  stock_disponible: number;
+  stock_actual: number; // compatibilidad: = stock_disponible
+  costo_promedio: number;
+  costo_ultimo: number;
+  valor_stock: number;
   activo: boolean;
+  estado: 'disponible' | 'cuarentena' | 'bloqueado' | 'reservado' | 'en_transito' | 'merma' | 'devuelto';
   requiere_reposicion: boolean;
+}
+
+export interface Proveedor {
+  id: number;
+  nombre: string;
+}
+
+export interface ReservaStock {
+  id: number;
+  producto_id: number;
+  cantidad: number;
+  estado: 'activa' | 'confirmada' | 'liberada' | 'vencida' | 'parcial';
+  origen_tipo: 'venta' | 'transferencia' | 'produccion' | 'ajuste' | 'manual';
+  origen_id: number | null;
+  referencia: string | null;
+  notas: string | null;
+  usuario_creacion_id: number;
+  usuario_confirmacion_id: number | null;
+  fecha_vencimiento: string | null;
+  creado_at: string;
+  confirmado_at: string | null;
+  liberado_at: string | null;
+  producto?: string;
+  unidad_medida?: string;
 }
 
 export interface MovimientoInventario {

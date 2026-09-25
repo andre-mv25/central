@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import configuration from './config/configuration';
 import { DatabaseModule } from './config/database.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { IdempotencyGuard } from './common/guards/idempotency.guard';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -16,6 +18,7 @@ import { RegistrosVentasModule } from './modules/registros-ventas/registros-vent
 import { HistorialPreciosModule } from './modules/historial-precios/historial-precios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
+import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
@@ -36,11 +39,14 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     HistorialPreciosModule,
     ReportesModule,
     InventarioModule,
+    ProveedoresModule,
     RealtimeModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: IdempotencyGuard },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })

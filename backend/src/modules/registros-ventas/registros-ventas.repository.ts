@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../config/database.constants';
+import { withRetry } from '../../common/utils/db-retry.util';
 
 export type DbExecutor = Pool | PoolClient;
 
@@ -51,36 +52,40 @@ export class RegistrosVentasRepository {
       JOIN usuarios u ON u.id = rv.usuario_registro_id`;
 
   async findAll(filtro: RegistrosFiltro): Promise<RegistroVentaDetalle[]> {
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    return withRetry(async () => {
+      const conditions: string[] = [];
+      const params: unknown[] = [];
 
-    if (filtro.fecha) {
-      params.push(filtro.fecha);
-      conditions.push(`rv.fecha = $${params.length}`);
-    }
-    if (filtro.compradorId) {
-      params.push(filtro.compradorId);
-      conditions.push(`rv.comprador_id = $${params.length}`);
-    }
-    if (filtro.sucursal) {
-      params.push(filtro.sucursal);
-      conditions.push(`c.sucursal = $${params.length}`);
-    }
+      if (filtro.fecha) {
+        params.push(filtro.fecha);
+        conditions.push(`rv.fecha = $${params.length}`);
+      }
+      if (filtro.compradorId) {
+        params.push(filtro.compradorId);
+        conditions.push(`rv.comprador_id = $${params.length}`);
+      }
+      if (filtro.sucursal) {
+        params.push(filtro.sucursal);
+        conditions.push(`c.sucursal = $${params.length}`);
+      }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const { rows } = await this.pool.query<RegistroVentaDetalle>(
-      `${this.selectDetalle} ${where} ORDER BY rv.creado_at DESC`,
-      params,
-    );
-    return rows;
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      const { rows } = await this.pool.query<RegistroVentaDetalle>(
+        `${this.selectDetalle} ${where} ORDER BY rv.creado_at DESC`,
+        params,
+      );
+      return rows;
+    });
   }
 
   async findById(id: number): Promise<RegistroVentaDetalle | null> {
-    const { rows } = await this.pool.query<RegistroVentaDetalle>(
-      `${this.selectDetalle} WHERE rv.id = $1`,
-      [id],
-    );
-    return rows[0] ?? null;
+    return withRetry(async () => {
+      const { rows } = await this.pool.query<RegistroVentaDetalle>(
+        `${this.selectDetalle} WHERE rv.id = $1`,
+        [id],
+      );
+      return rows[0] ?? null;
+    });
   }
 
   async create(

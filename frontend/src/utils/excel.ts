@@ -278,6 +278,11 @@ export function exportInventarioToExcel(
     '#': index + 1,
     ID: p.id,
     Variedad: p.nombre,
+    Código: p.codigo || '—',
+    'N° Lote': p.numero_lote || '—',
+    'Fecha Cosecha': p.fecha_cosecha ? new Date(p.fecha_cosecha).toLocaleDateString('es-MX') : '—',
+    'Fecha Caducidad': p.fecha_caducidad ? new Date(p.fecha_caducidad).toLocaleDateString('es-MX') : '—',
+    Origen: p.origen || '—',
     'Stock Actual': p.stock_actual,
     'Stock Mínimo': p.stock_minimo,
     'Unidad Medida': p.unidad_medida,
@@ -309,6 +314,10 @@ export function exportInventarioToExcel(
       .map((p, i) => ({
         '#': i + 1,
         Variedad: p.nombre,
+        Código: p.codigo || '—',
+        'N° Lote': p.numero_lote || '—',
+        'Fecha Caducidad': p.fecha_caducidad ? new Date(p.fecha_caducidad).toLocaleDateString('es-MX') : '—',
+        Origen: p.origen || '—',
         'Stock Actual': p.stock_actual,
         'Stock Mínimo': p.stock_minimo,
         Déficit: (p.stock_minimo - p.stock_actual).toFixed(3),
@@ -399,9 +408,22 @@ export function exportMovimientosToExcel(
   XLSX.writeFile(workbook, `${filename}.${outputFormat}`);
 }
 
-export function parseInventarioRow(row: Record<string, unknown>): { nombre: string; codigo?: string; unidadMedida: string; stockMinimo: number } | null {
+export function parseInventarioRow(row: Record<string, unknown>): { 
+  nombre: string; 
+  codigo?: string; 
+  numeroLote?: string;
+  fechaCosecha?: string;
+  fechaCaducidad?: string;
+  origen?: string;
+  unidadMedida: string; 
+  stockMinimo: number 
+} | null {
   const nombre = String(row.Variedad || row.variedad || '').trim();
   const codigo = String(row.Código || row.codigo || '').trim() || undefined;
+  const numeroLote = String(row['N° Lote'] || row['Numero Lote'] || row.numeroLote || '').trim() || undefined;
+  const fechaCosecha = String(row['Fecha Cosecha'] || row.fechaCosecha || '').trim() || undefined;
+  const fechaCaducidad = String(row['Fecha Caducidad'] || row.fechaCaducidad || '').trim() || undefined;
+  const origen = String(row.Origen || row.origen || '').trim() || undefined;
   const stockMinimo = Number(row['Stock Mínimo'] || row['Stock Minimo'] || row.stockMinimo || row['stock_minimo'] || 0);
   const unidadMedida = String(row['Unidad Medida'] || row.unidadMedida || row.unidad_medida || 'kg').trim().toLowerCase();
   
@@ -419,6 +441,10 @@ export function parseInventarioRow(row: Record<string, unknown>): { nombre: stri
   return {
     nombre,
     codigo,
+    numeroLote,
+    fechaCosecha,
+    fechaCaducidad,
+    origen,
     unidadMedida: unidad,
     stockMinimo,
   };
