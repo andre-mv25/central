@@ -6,6 +6,9 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
   },
   priceAlertThreshold: parseFloat(process.env.PRICE_ALERT_THRESHOLD ?? '20'),
+  groq: {
+    apiKey: process.env.GROQ_API_KEY ?? '',
+  },
   database: {
     host: process.env.POSTGRES_HOST ?? 'localhost',
     port: parseInt(process.env.POSTGRES_PORT ?? '5432', 10),

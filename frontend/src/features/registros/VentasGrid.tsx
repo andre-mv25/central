@@ -92,7 +92,7 @@ export function VentasGrid({ registros, cargando, onEliminar }: Props) {
   );
 
   return (
-    <div className="grid-ventas">
+    <div style={{ height: '100%', minHeight: '360px', display: 'flex', flexDirection: 'column' }}>
       <div className="grid-toolbar">
         <div className="toolbar-group">
           <span className="toolbar-label">Exportar:</span>

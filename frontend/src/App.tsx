@@ -3,6 +3,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegistrosPage } from './features/registros/RegistrosPage';
 import { InventarioPage } from './features/inventario/InventarioPage';
+import { ResumenDiario } from './features/reportes/ResumenDiario';
 import { useAuthStore } from './store/auth.store';
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/" element={autenticado ? <AppLayout /> : <Navigate to="/login" replace />}>
         <Route index element={<RegistrosPage />} />
         <Route path="inventario" element={<InventarioPage />} />
+        <Route path="resumen" element={<ResumenDiario />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -261,29 +261,31 @@ export function RegistrosPage() {
 
       {error && <div className="panel error-msg">{error}</div>}
 
-      <div className="panel panel-captura">
-        <div className="section-heading"><div><h2>Nueva captura</h2><p>Escribe el nombre del producto/variedad manualmente (no necesita existir en inventario).</p></div><span className="counter">{filas.length} {filas.length === 1 ? 'fila' : 'filas'}</span></div>
-        <div className="acciones-grid">
-          <button className="secundario" onClick={agregarFila} disabled={guardando}>
-            + Agregar fila
-          </button>
-          <button onClick={guardarTodo} disabled={guardando || filas.length === 0}>
-            {guardando ? 'Guardando...' : `Guardar todo (${filas.length})`}
-          </button>
+      <div className="registros-grid">
+        <div className="panel panel-captura">
+          <div className="section-heading"><div><h2>Nueva captura</h2><p>Escribe el nombre del producto/variedad manualmente (no necesita existir en inventario).</p></div><span className="counter">{filas.length} {filas.length === 1 ? 'fila' : 'filas'}</span></div>
+          <div className="acciones-grid">
+            <button className="secundario" onClick={agregarFila} disabled={guardando}>
+              + Agregar fila
+            </button>
+            <button onClick={guardarTodo} disabled={guardando || filas.length === 0}>
+              {guardando ? 'Guardando...' : `Guardar todo (${filas.length})`}
+            </button>
+          </div>
+          <CapturaGrid
+            filas={filas}
+            variedades={productos.map((producto) => producto.nombre)}
+            guardando={guardando}
+            onCeldaCambiada={onCeldaCambiada}
+            onEliminarFila={eliminarFila}
+            onImportar={handleImportarFilas}
+          />
         </div>
-        <CapturaGrid
-          filas={filas}
-          variedades={productos.map((producto) => producto.nombre)}
-          guardando={guardando}
-          onCeldaCambiada={onCeldaCambiada}
-          onEliminarFila={eliminarFila}
-          onImportar={handleImportarFilas}
-        />
-      </div>
 
-      <div className="panel">
-        <div className="section-heading"><div><h2>Ventas registradas</h2><p>Movimientos guardados para la fecha seleccionada.</p></div></div>
-        <VentasGrid registros={registros} cargando={cargando} onEliminar={eliminarRegistro} />
+        <div className="panel">
+          <div className="section-heading"><div><h2>Ventas registradas</h2><p>Movimientos guardados para la fecha seleccionada.</p></div></div>
+          <VentasGrid registros={registros} cargando={cargando} onEliminar={eliminarRegistro} />
+        </div>
       </div>
 
       <ConfirmPriceModal

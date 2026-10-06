@@ -116,24 +116,38 @@ export class InventarioRepository {
   }
 
   async lockProducto(id: number, executor: PoolClient): Promise<ProductoInventarioRow | null> {
+    // Primero bloquear la fila del producto
+    const lockResult = await executor.query(
+      `SELECT id FROM productos p WHERE p.id = $1 FOR UPDATE OF p`,
+      [id]
+    );
+    if (lockResult.rows.length === 0) return null;
+    
+    // Luego obtener datos con stock calculado
     const { rows } = await executor.query<ProductoInventarioRow>(
       `SELECT ${this.productoSelect}
        FROM productos p LEFT JOIN movimientos_inventario m ON m.producto_id = p.id
        WHERE p.id = $1
-       GROUP BY p.id
-       FOR UPDATE OF p`,
+       GROUP BY p.id`,
       [id],
     );
     return rows[0] ?? null;
   }
 
   async lockProductoByNombre(nombre: string, executor: PoolClient): Promise<ProductoInventarioRow | null> {
+    // Primero bloquear la fila del producto
+    const lockResult = await executor.query(
+      `SELECT id FROM productos p WHERE lower(trim(p.nombre)) = lower(trim($1)) FOR UPDATE OF p`,
+      [nombre]
+    );
+    if (lockResult.rows.length === 0) return null;
+    
+    // Luego obtener datos con stock calculado
     const { rows } = await executor.query<ProductoInventarioRow>(
       `SELECT ${this.productoSelect}
        FROM productos p LEFT JOIN movimientos_inventario m ON m.producto_id = p.id
        WHERE lower(trim(p.nombre)) = lower(trim($1))
-       GROUP BY p.id
-       FOR UPDATE OF p`,
+       GROUP BY p.id`,
       [nombre],
     );
     return rows[0] ?? null;

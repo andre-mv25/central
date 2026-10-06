@@ -121,7 +121,7 @@ export function CapturaGrid({ filas, variedades, guardando, onCeldaCambiada, onE
   );
 
   return (
-    <div className="grid-captura">
+    <div style={{ height: '100%', minHeight: '320px', display: 'flex', flexDirection: 'column' }}>
       <div className="grid-toolbar">
         <div className="toolbar-group">
           <span className="toolbar-label">Exportar:</span>

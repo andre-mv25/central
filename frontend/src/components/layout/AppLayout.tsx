@@ -21,6 +21,7 @@ export function AppLayout() {
         <nav className="side-nav" aria-label="Módulos principales">
           <NavLink to="/" end><span className="nav-icon">▦</span><span>Ventas</span></NavLink>
           <NavLink to="/inventario"><span className="nav-icon">◫</span><span>Inventario</span></NavLink>
+          <NavLink to="/resumen"><span className="nav-icon">📋</span><span>Resumen</span></NavLink>
         </nav>
         <div className="sidebar-footer">
           <div className="user-card"><span className="user-avatar">{usuario?.email?.slice(0, 1).toUpperCase() ?? 'U'}</span><div><strong>{usuario?.email}</strong><span>{usuario?.rol}</span></div></div>

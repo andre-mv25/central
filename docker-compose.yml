@@ -1,60 +1,64 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: registro-ventas-db
+    container_name: inventario-papa-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-inventario}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-inventario}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - registro-ventas
+      - inventario-papa
 
   backend:
     build:
-      context: ./backend
-    image: registro-ventas-backend:latest
-    container_name: registro-ventas-backend
+      context: ./backend_py
+    image: inventario-papa-backend:latest
+    container_name: inventario-papa-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      BACKEND_PORT: 3000
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
-      PRICE_ALERT_THRESHOLD: ${PRICE_ALERT_THRESHOLD:-20}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-inventario}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 480
+      BCRYPT_ROUNDS: 12
+      ALLOW_NEGATIVE_STOCK: "false"
+      CLASSIFICATION_TOLERANCE_KG: "0.5"
+      COST_ALLOCATION_METHOD: "peso"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:80"
+      LOG_LEVEL: INFO
     depends_on:
       db:
         condition: service_healthy
     networks:
-      - registro-ventas
+      - inventario-papa
+    ports:
+      - "8000:8000"
 
   frontend:
     build:
       context: ./frontend
-    image: registro-ventas-frontend:latest
-    container_name: registro-ventas-frontend
+    image: inventario-papa-frontend:latest
+    container_name: inventario-papa-frontend
     restart: unless-stopped
     depends_on:
       - backend
     networks:
-      - registro-ventas
+      - inventario-papa
+    ports:
+      - "5173:5173"
 
   caddy:
     image: caddy:2-alpine
-    container_name: registro-ventas-caddy
+    container_name: inventario-papa-caddy
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-80}:80"
@@ -70,7 +74,7 @@ services:
       - backend
       - frontend
     networks:
-      - registro-ventas
+      - inventario-papa
 
 volumes:
   pgdata:
@@ -78,5 +82,5 @@ volumes:
   caddy_config:
 
 networks:
-  registro-ventas:
+  inventario-papa:
     driver: bridge
