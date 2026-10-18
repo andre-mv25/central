@@ -1,37 +1,33 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AG_GRID_LOCALE_SPANISH } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { AgGridReact } from 'ag-grid-react';
 import { historialService } from './historial.service';
-import { HistorialItem } from './historial.service';
 import * as XLSX from 'xlsx';
 
+const columnDefs = [
+  { field: 'fecha', headerName: 'Fecha', width: 160 },
+  { field: 'usuario_email', headerName: 'Usuario', width: 140 },
+  { field: 'accion', headerName: 'Acción', width: 140 },
+  { field: 'entidad', headerName: 'Entidad', width: 120 },
+  { field: 'entidad_id', headerName: 'ID Entidad', width: 100 },
+  { field: 'detalles', headerName: 'Detalles', width: 250 },
+] as any;
+
+const defaultColDef = {
+  sortable: true,
+  filter: true,
+  resizable: true
+};
+
 export default function HistorialPage() {
-  const navigate = useNavigate();
-  const [rowData, setRowData] = useState<HistorialItem[]>([]);
+  const [rowData, setRowData] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [filtroAccion, setFiltroAccion] = useState('');
   const [filtroEntidad, setFiltroEntidad] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-
-  const columnDefs = [
-    { field: 'fecha', headerName: 'Fecha', width: 160 },
-    { field: 'usuario_email', headerName: 'Usuario', width: 140 },
-    { field: 'accion', headerName: 'Acción', width: 140 },
-    { field: 'entidad', headerName: 'Entidad', width: 120 },
-    { field: 'entidad_id', headerName: 'ID Entidad', width: 100 },
-    { field: 'detalles', headerName: 'Detalles', width: 250, valueFormatter: (params: any) => params.value ? JSON.stringify(params.value) : '' }
-  ];
-
-  const defaultColDef = {
-    sortable: true,
-    filter: true,
-    resizable: true
-  };
 
   const cargarHistorial = async () => {
     setCargando(true);
@@ -82,7 +78,7 @@ export default function HistorialPage() {
 
   useEffect(() => {
     cargarHistorial();
-  }, []);
+  }, [fechaDesde, fechaHasta, filtroAccion, filtroEntidad]);
 
   return (
     <div className="p-6">
@@ -103,7 +99,7 @@ export default function HistorialPage() {
             onClick={limpiarAntiguo}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
           >
-            Limpiar (>3 días)
+            Limpiar (más de 3 días)
           </button>
         </div>
       </div>
@@ -159,16 +155,16 @@ export default function HistorialPage() {
           </button>
         </div>
         <div className="relative">
-          <AgGridReact
-            columnDefs={columnDefs}
-            rowData={rowData}
-            defaultColDef={defaultColDef}
-            rowHeight={42}
-            headerHeight={40}
-            localeText={AG_GRID_LOCALE_SPANISH}
-            className="ag-theme-alpine"
-            style={{ width: '100%', height: 500 }}
-          />
+          <div style={{ width: '100%', height: 500 }}>
+            <AgGridReact
+              columnDefs={columnDefs}
+              rowData={rowData}
+              defaultColDef={defaultColDef}
+              rowHeight={42}
+              headerHeight={40}
+              className="ag-theme-alpine"
+            />
+          </div>
         </div>
       </div>
     </div>
