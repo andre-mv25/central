@@ -8,6 +8,7 @@ Sistema de captura y registro de ventas a granel por clase y calidad.
 - **Base de datos:** PostgreSQL 16+
 - **Frontend:** React + AG Grid (Vite + TypeScript)
 - **Infraestructura:** Docker + Docker Compose, Caddy como proxy inverso
+- **Historial de acciones:** tabla `historial_acciones`, pantalla web, exportación a Excel y limpieza automática a 3 días
 
 ## Estructura
 
@@ -195,7 +196,8 @@ si el precio cambió.
 ## Estado
 
 - [x] Esquema y seed de base de datos
-- [x] API backend (auth, catálogos, ventas, historial de precios, reportes)
+- [x] API backend (auth, catálogos, ventas, historial de precios, reportes, historial de acciones)
+- [x] Pantalla web de historial con exportación a Excel y limpieza automática a 3 días
 - [x] docker-compose del stack completo (db + backend + frontend + caddy)
 - [x] Frontend React + AG Grid
 - [x] Scripts de configuración, respaldo y restauración
