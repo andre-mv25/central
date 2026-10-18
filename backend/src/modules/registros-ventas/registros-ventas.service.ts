@@ -155,12 +155,29 @@ export class RegistrosVentasService {
         usuario.id,
       );
       await client.query('COMMIT');
+
+      const [compradorRow, claseRow, calidadRow] = await Promise.all([
+        client.query('SELECT nombre FROM compradores WHERE id = $1', [compradorId]),
+        client.query('SELECT nombre_clase FROM clases WHERE id = $1', [claseId]),
+        client.query('SELECT nombre_calidad FROM calidades WHERE id = $1', [calidadId]),
+      ]);
+
       await this.auditoriaService.registrar({
         usuarioId: usuario.id,
         accion: 'VENTA_CREAR',
         entidad: 'registros_ventas',
         entidadId: registro.id,
-        detalles: { compradorId, claseId, calidadId, bolsas: dto.bolsas, kilos: dto.kilos, precio: dto.precio, fecha: dto.fecha }
+        detalles: {
+          ventaId: registro.id,
+          comprador: compradorRow.rows[0]?.nombre,
+          clase: claseRow.rows[0]?.nombre_clase,
+          calidad: calidadRow.rows[0]?.nombre_calidad,
+          bolsas: dto.bolsas,
+          kilos: dto.kilos,
+          precio: dto.precio,
+          total: Number(dto.kilos) * Number(dto.precio),
+          fecha: dto.fecha
+        }
       });
       return this.findById(registro.id);
     } catch (error) {
@@ -235,11 +252,24 @@ export class RegistrosVentasService {
       }
       await client.query('COMMIT');
 
+      const detalleBulk = resolvedItems.map((item, idx) => ({
+        index: idx,
+        ventaId: item.id ?? null,
+        compradorId: item.compradorId,
+        claseId: item.claseId,
+        calidadId: item.calidadId,
+        bolsas: item.bolsas,
+        kilos: item.kilos,
+        precio: item.precio,
+        total: Number(item.kilos) * Number(item.precio),
+        fecha: item.fecha ?? dto.fecha
+      }));
+
       await this.auditoriaService.registrar({
         usuarioId: usuario.id,
         accion: 'VENTA_BULK_CREAR',
         entidad: 'registros_ventas',
-        detalles: { total: ids.length, ids }
+        detalles: { total: ids.length, ids, registros: detalleBulk }
       });
 
       const registros = await Promise.all(ids.map((id) => this.repository.findById(id)));
@@ -276,26 +306,49 @@ export class RegistrosVentasService {
       throw new NotFoundException(`Registro de venta ${id} no encontrado`);
     }
     if (usuario) {
+      const actualizado = await this.repository.findById(id);
       await this.auditoriaService.registrar({
         usuarioId: usuario.id,
         accion: 'VENTA_EDITAR',
         entidad: 'registros_ventas',
         entidadId: id,
-        detalles: dto as Record<string, unknown>
+        detalles: {
+          ventaId: id,
+          compradorId: actualizado?.comprador_id,
+          claseId: actualizado?.clase_id,
+          calidadId: actualizado?.calidad_id,
+          bolsas: actualizado?.bolsas,
+          kilos: actualizado?.kilos,
+          precio: actualizado?.precio,
+          total: actualizado?.total,
+          fecha: actualizado?.fecha,
+          cambios: dto as Record<string, unknown>
+        }
       });
     }
     return this.findById(id);
   }
 
   async remove(id: number, usuario?: AuthUser) {
-    await this.findById(id);
+    const registro = await this.repository.findById(id);
     await this.repository.remove(id);
-    if (usuario) {
+    if (usuario && registro) {
       await this.auditoriaService.registrar({
         usuarioId: usuario.id,
         accion: 'VENTA_ELIMINAR',
         entidad: 'registros_ventas',
-        entidadId: id
+        entidadId: id,
+        detalles: {
+          ventaId: id,
+          compradorId: registro.comprador_id,
+          claseId: registro.clase_id,
+          calidadId: registro.calidad_id,
+          bolsas: registro.bolsas,
+          kilos: registro.kilos,
+          precio: registro.precio,
+          total: registro.total,
+          fecha: registro.fecha
+        }
       });
     }
     return { id, eliminado: true };
