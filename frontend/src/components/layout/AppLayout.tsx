@@ -22,9 +22,6 @@ export function AppLayout() {
           <NavLink to="/entradas" className={({ isActive }) => `nav-tab ${isActive ? 'activo' : ''}`}>
             Entradas
           </NavLink>
-          <NavLink to="/historial" className={({ isActive }) => `nav-tab ${isActive ? 'activo' : ''}`}>
-            Historial
-          </NavLink>
         </nav>
         <div className="usuario">
           <span>

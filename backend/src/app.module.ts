@@ -16,8 +16,6 @@ import { RegistrosVentasModule } from './modules/registros-ventas/registros-vent
 import { HistorialPreciosModule } from './modules/historial-precios/historial-precios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { EntradasMercanciaModule } from './modules/entradas-mercancia/entradas-mercancia.module';
-import { HistorialModule } from './modules/historial/historial.module';
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -36,7 +34,6 @@ import { HistorialModule } from './modules/historial/historial.module';
     HistorialPreciosModule,
     ReportesModule,
     EntradasMercanciaModule,
-    HistorialModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
