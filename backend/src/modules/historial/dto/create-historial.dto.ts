@@ -2,13 +2,13 @@ import { IsString, IsOptional, IsInt } from 'class-validator';
 
 export class CreateHistorialDto {
   @IsInt()
-  usuarioId: number;
+  usuarioId!: number;
 
   @IsString()
-  accion: string;
+  accion!: string;
 
   @IsString()
-  entidad: string;
+  entidad!: string;
 
   @IsInt()
   @IsOptional()

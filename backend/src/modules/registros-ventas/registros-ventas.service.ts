@@ -252,7 +252,7 @@ export class RegistrosVentasService {
     }
   }
 
-  async update(id: number, dto: UpdateRegistroVentaDto) {
+  async update(id: number, dto: UpdateRegistroVentaDto, usuario?: AuthUser) {
     await this.findById(id);
 
     if (dto.precio || dto.claseId || dto.calidadId) {
@@ -275,13 +275,15 @@ export class RegistrosVentasService {
     if (!updated) {
       throw new NotFoundException(`Registro de venta ${id} no encontrado`);
     }
-    await this.auditoriaService.registrar({
-      usuarioId: usuario.id,
-      accion: 'VENTA_EDITAR',
-      entidad: 'registros_ventas',
-      entidadId: id,
-      detalles: dto
-    });
+    if (usuario) {
+      await this.auditoriaService.registrar({
+        usuarioId: usuario.id,
+        accion: 'VENTA_EDITAR',
+        entidad: 'registros_ventas',
+        entidadId: id,
+        detalles: dto as Record<string, unknown>
+      });
+    }
     return this.findById(id);
   }
 
