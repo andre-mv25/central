@@ -254,7 +254,6 @@ export class RegistrosVentasService {
 
       const detalleBulk = resolvedItems.map((item, idx) => ({
         index: idx,
-        ventaId: item.id ?? null,
         compradorId: item.compradorId,
         claseId: item.claseId,
         calidadId: item.calidadId,
