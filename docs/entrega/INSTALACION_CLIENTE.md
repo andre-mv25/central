@@ -27,7 +27,7 @@ docker-compose.yml        configuración de los servicios
 imagenes/                 imágenes Docker preconstruidas (no requiere compilar)
 instaladores/             instalador de Docker Desktop (si se generó con internet)
 scripts/                  atajos de instalación, respaldo y restauración
-database/init/            esquema y datos iniciales de la base (incluye historial_acciones)
+database/init/            esquema y datos iniciales de la base
 infra/caddy/              configuración del servidor web
 LEEME.md                  este documento
 ```
@@ -113,39 +113,9 @@ docker compose down          # detener y quitar contenedores (los datos se conse
 Si la aplicación no abre, verificar que Docker Desktop esté en ejecución y que
 el puerto 80 no esté ocupado por otro programa (IIS, Skype, etc.).
 
-## 7. Historial de acciones
-
-El sistema registra automáticamente cada acción de ventas (crear, editar, eliminar y capturas en lote) en el historial.
-
-- Pantalla: `http://localhost/historial`
-- Filtros disponibles: acción, entidad y rango de fechas.
-- Exportar a Excel: botón **Exportar Excel** en la pantalla de historial.
-- Limpieza automática: todos los días a medianoche se borra el historial con más de 3 días de antigüedad.
-- Limpieza manual desde la pantalla: botón **Limpiar (>3 días)**.
-
-## 8. Respaldos
-
-Crear un respaldo (queda en la carpeta `respaldos/`):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\respaldo.ps1
-```
-```bash
-sh scripts/respaldo.sh
-```
-
-Restaurar un respaldo:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\restaurar.ps1 respaldos\registro_ventas_AAAAMMDD-HHMMSS.dump
-```
-```bash
-sh scripts/restaurar.sh respaldos/registro_ventas_AAAAMMDD-HHMMSS.dump
-```
-
 Recomendación: respaldar la carpeta `respaldos/` al menos una vez por semana.
 
-## 9. Si el puerto 80 está ocupado
+## 8. Si el puerto 80 está ocupado
 
 Editar el archivo `.env` y cambiar:
 
