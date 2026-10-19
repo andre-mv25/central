@@ -16,8 +16,10 @@ export const entradasMercanciaService = {
 
   async crearLote(
     filas: FilaEntrada[],
+    fecha: string,
   ): Promise<{ total: number; entradas: EntradaMercancia[] }> {
     const { data } = await api.post('/entradas-mercancia/bulk', {
+      fecha,
       registros: filas.map((fila) => ({
         proveedorNombre: fila.proveedorNombre,
         claseNombre: fila.claseNombre,

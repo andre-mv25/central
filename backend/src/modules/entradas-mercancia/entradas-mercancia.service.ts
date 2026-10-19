@@ -125,9 +125,12 @@ export class EntradasMercanciaService {
     try {
       await client.query('BEGIN');
 
+      const fechaPorDefecto = dto.fecha;
+
       const resolvedItems = await Promise.all(
         dto.registros.map(async (item) => ({
           ...item,
+          fecha: item.fecha ?? fechaPorDefecto,
           proveedorId: await this.obtenerProveedorId(client, item),
           claseId: await this.obtenerClaseId(client, item),
           calidadId: await this.obtenerCalidadId(client, item),

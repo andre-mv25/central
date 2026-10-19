@@ -34,8 +34,13 @@ export function EntradasPage() {
     void cargarDatos();
   }, [cargarDatos]);
 
-  const onCeldaCambiada = (_filaActualizada: FilaEntrada, _campo: string) => {
-    // No evaluation needed for entries, just update the row
+  const onCeldaCambiada = (filaActualizada: FilaEntrada, campo: string) => {
+    setFilas((prev) =>
+      prev.map((f) => {
+        if (f.id !== filaActualizada.id) return f;
+        return { ...f, [campo]: (filaActualizada as any)[campo] };
+      })
+    );
   };
 
   const agregarFila = () => {
@@ -82,7 +87,7 @@ export function EntradasPage() {
     setError('');
     setGuardando(true);
     try {
-      await entradasMercanciaService.crearLote(filas);
+      await entradasMercanciaService.crearLote(filas, fecha);
       await finalizarGuardado();
     } catch (err) {
       setError(apiErrorMessage(err));
