@@ -43,7 +43,6 @@ export function EntradasGrid({ entradas, cargando, onEliminar }: Props) {
       { header: 'Observaciones', key: 'observaciones', width: 30 },
       { header: 'Registró', key: 'usuario', width: 20 },
       { header: 'Sucursal', key: 'sucursal', width: 15 },
-      { header: 'Creado', key: 'creado_at', width: 20, formatter: (val: unknown) => formatoFechaExcel(val as string | Date | undefined) },
     ] as const;
     const fecha = new Date().toISOString().split('T')[0];
     exportToExcel(entradas, columns, `entradas_${fecha}`, 'Entradas');

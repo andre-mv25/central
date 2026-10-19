@@ -42,7 +42,6 @@ export function VentasGrid({ registros, cargando, onEliminar }: Props) {
       { header: 'Total', key: 'total', width: 15, formatter: (val: unknown) => formatoMonedaExcel(val as string | number | null | undefined) },
       { header: 'Registró', key: 'usuario', width: 20 },
       { header: 'Sucursal', key: 'sucursal', width: 15 },
-      { header: 'Creado', key: 'creado_at', width: 20, formatter: (val: unknown) => formatoFechaExcel(val as string | Date | undefined) },
     ] as const;
     const fecha = new Date().toISOString().split('T')[0];
     exportToExcel(registros, columns, `ventas_${fecha}`, 'Ventas');
