@@ -42,6 +42,11 @@ export function exportToExcel<T>(
 
 export function formatoFechaExcel(fecha: string | Date | undefined): string {
   if (!fecha) return '';
+  // Si ya viene como string YYYY-MM-DD de la base de datos, devolver tal cual para evitar
+  // desplazamiento de zona horaria al hacer new Date() en UTC
+  if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return fecha;
+  }
   const d = new Date(fecha);
   return d.toLocaleDateString('es-ES');
 }
