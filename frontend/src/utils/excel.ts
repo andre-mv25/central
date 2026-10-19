@@ -42,10 +42,14 @@ export function exportToExcel<T>(
 
 export function formatoFechaExcel(fecha: string | Date | undefined): string {
   if (!fecha) return '';
-  // Si ya viene como string YYYY-MM-DD de la base de datos, devolver tal cual para evitar
-  // desplazamiento de zona horaria al hacer new Date() en UTC
-  if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    return fecha;
+  if (typeof fecha === 'string') {
+    // Extraer solo la parte de fecha (YYYY-MM-DD) sin usar new Date() para evitar
+    // desplazamiento de zona horaria. Funciona tanto para "2026-10-18" como para
+    // "2026-10-18T10:30:00.000Z".
+    const match = fecha.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+      return match[1].replace(/-/g, '/');
+    }
   }
   const d = new Date(fecha);
   return d.toLocaleDateString('es-ES');
