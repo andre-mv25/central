@@ -3,7 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { gridTheme } from '../../utils/gridTheme';
 import { formatoMoneda, formatoNumero } from '../../utils/format';
-import { exportToExcel, formatoFechaExcel } from '../../utils/excel';
+import { exportToExcel, formatoFechaExcel, formatoMonedaExcel, formatoNumeroExcel } from '../../utils/excel';
 import type { RegistroVenta } from '../../types';
 
 interface Props {
@@ -32,6 +32,16 @@ export function VentasGrid({ registros, cargando, onEliminar }: Props) {
   const handleExport = () => {
     if (registros.length === 0) return;
     const columns = [
+      { header: 'Fecha', key: 'fecha', width: 12, formatter: (val: unknown) => formatoFechaExcel(val as string | Date | undefined) },
+      { header: 'Comprador', key: 'comprador', width: 25 },
+      { header: 'Clase', key: 'clase', width: 15 },
+      { header: 'Calidad', key: 'calidad', width: 15 },
+      { header: 'Bolsas', key: 'bolsas', width: 10, formatter: (val: unknown) => formatoNumeroExcel(val as string | number | null | undefined, 0) },
+      { header: 'Kilos', key: 'kilos', width: 12, formatter: (val: unknown) => formatoNumeroExcel(val as string | number | null | undefined, 3) },
+      { header: 'Precio', key: 'precio', width: 15, formatter: (val: unknown) => formatoMonedaExcel(val as string | number | null | undefined) },
+      { header: 'Total', key: 'total', width: 15, formatter: (val: unknown) => formatoMonedaExcel(val as string | number | null | undefined) },
+      { header: 'Registró', key: 'usuario', width: 20 },
+      { header: 'Sucursal', key: 'sucursal', width: 15 },
       { header: 'Creado', key: 'creado_at', width: 20, formatter: (val: unknown) => formatoFechaExcel(val as string | Date | undefined) },
     ] as const;
     const fecha = new Date().toISOString().split('T')[0];
