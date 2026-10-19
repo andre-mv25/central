@@ -78,9 +78,10 @@ export function CapturaGrid({
         width: 130,
         editable: false,
         valueGetter: (p) => {
+          const bolsas = Number(p.data?.bolsas);
           const kilos = Number(p.data?.kilos);
           const precio = Number(p.data?.precio);
-          return kilos > 0 && precio > 0 ? kilos * precio : null;
+          return bolsas > 0 && kilos > 0 && precio > 0 ? bolsas * kilos * precio : null;
         },
         valueFormatter: (p) => (p.value != null ? formatoMoneda(p.value) : '—'),
         cellStyle: { fontWeight: '600' },
@@ -103,9 +104,10 @@ export function CapturaGrid({
       (acc, f) => {
         acc.bolsas += Number(f.bolsas) || 0;
         acc.kilos += Number(f.kilos) || 0;
+        const bolsas = Number(f.bolsas) || 0;
         const kilos = Number(f.kilos) || 0;
         const precio = Number(f.precio) || 0;
-        acc.total += kilos * precio;
+        acc.total += bolsas * kilos * precio;
         return acc;
       },
       { bolsas: 0, kilos: 0, total: 0 },

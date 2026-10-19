@@ -127,7 +127,7 @@ export function VentasGrid({ registros, cargando, onEliminar }: Props) {
     <div className="grid-ventas">
       <div className="grid-toolbar">
         <button className="secundario" onClick={handleExport} disabled={registros.length === 0}>
-          📥 Exportar a Excel
+           Exportar a Excel
         </button>
       </div>
       <AgGridReact<RegistroVenta>

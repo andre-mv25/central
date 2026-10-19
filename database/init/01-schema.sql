@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS registros_ventas (
     bolsas            INTEGER NOT NULL DEFAULT 1 CHECK (bolsas > 0),
     kilos             NUMERIC(12,3) NOT NULL CHECK (kilos > 0),
     precio            NUMERIC(12,2) NOT NULL CHECK (precio > 0),
-    total             NUMERIC(12,2) GENERATED ALWAYS AS (kilos * precio) STORED,
+    total             NUMERIC(12,2) GENERATED ALWAYS AS (bolsas * kilos * precio) STORED,
     fecha             DATE NOT NULL DEFAULT CURRENT_DATE,
     creado_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     actualizado_at    TIMESTAMPTZ NOT NULL DEFAULT now()
